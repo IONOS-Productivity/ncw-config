@@ -1,5 +1,12 @@
 #!/bin/sh
 
+SCRIPT_DIR="$(dirname "${0}")"
+readonly SCRIPT_DIR
+NEXTCLOUD_DIR="${SCRIPT_DIR}/.."
+readonly NEXTCLOUD_DIR
+LOGO_ABSOLUTE_DIR="$(cd "${NEXTCLOUD_DIR}/IONOS" && pwd)"
+readonly LOGO_ABSOLUTE_DIR
+
 # Execute NextCloud OCC command with error handling
 # Usage: execute_occ_command <command> [args...]
 execute_occ_command() {
@@ -67,6 +74,7 @@ configure_theming() {
 	execute_occ_command theming:config privacyUrl " "
 	execute_occ_command theming:config primary_color "#003D8F"
 	execute_occ_command theming:config disable-user-theming yes
+	execute_occ_command theming:config logo "${LOGO_ABSOLUTE_DIR}/IONOS_logo.svg"
 	#execute_occ_command theming:config favicon "${FAVICON_DIR}/favicon.ico"
 	execute_occ_command config:app:set theming backgroundMime --value backgroundColor
 	execute_occ_command config:system:set enforce_theme --value ionos
