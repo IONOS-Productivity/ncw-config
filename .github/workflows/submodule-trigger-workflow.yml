@@ -1,0 +1,57 @@
+# SPDX-FileCopyrightText: 2024 IONOS Productivity
+# SPDX-License-Identifier: MIT
+name: Trigger ncw-server submodule update
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-update:
+    runs-on: [self-hosted]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Get commit information
+        id: commit-info
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "message=$(git log -1 --pretty=format:'%s')" >> $GITHUB_OUTPUT
+          echo "author=$(git log -1 --pretty=format:'%an')" >> $GITHUB_OUTPUT
+
+      - name: Trigger ncw-server workflow
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.NCW_SERVER_DISPATCH_TOKEN }}
+          repository: IONOS-Productivity/ncw-server
+          event-type: submodule-update
+          client-payload: |
+            {
+              "submodule_name": "IONOS",
+              "submodule_repo": "${{ github.repository }}",
+              "commit_sha": "${{ steps.commit-info.outputs.sha }}",
+              "commit_message": "${{ steps.commit-info.outputs.message }}",
+              "commit_author": "${{ steps.commit-info.outputs.author }}",
+              "repository": "${{ github.repository }}",
+              "ref": "${{ github.ref }}",
+              "run_id": "${{ github.run_id }}",
+              "run_number": "${{ github.run_number }}"
+            }
+
+      - name: Log trigger details
+        run: |
+          echo "::notice::✅ Triggered ncw-server submodule update workflow"
+          echo "::notice::📦 Submodule: ${{ steps.submodule.outputs.name }}""
+          echo "::notice::🔗 Commit: ${{ steps.commit-info.outputs.sha }}"
+          echo "::notice::💬 Message: ${{ steps.commit-info.outputs.message }}"
+          echo "::notice::👤 Author: ${{ steps.commit-info.outputs.author }}"
