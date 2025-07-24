@@ -12,6 +12,13 @@ readonly LOGO_ABSOLUTE_DIR
 # SPDX-FileCopyrightText: 2025 STRATO AG
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+SCRIPT_DIR="$(dirname "${0}")"
+readonly SCRIPT_DIR
+NEXTCLOUD_DIR="${SCRIPT_DIR}/.."
+readonly NEXTCLOUD_DIR
+LOGO_ABSOLUTE_DIR="$(cd "${NEXTCLOUD_DIR}/IONOS" && pwd)"
+readonly LOGO_ABSOLUTE_DIR
+
 # Execute NextCloud OCC command with error handling
 # Usage: execute_occ_command <command> [args...]
 execute_occ_command() {
