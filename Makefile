@@ -15,9 +15,11 @@ help: ## This help.
 .DEFAULT_GOAL := help
 
 .remove_node_modules: ## Remove node_modules
+	@echo "[i] Removing node_modules..."
 	rm -rf node_modules
 
 build_core_app_theming: ## Build theming app
+	@echo "[i] Building theming app..."
 	cd apps/theming/composer && \
 		composer dump-autoload --optimize
 
@@ -29,18 +31,20 @@ build_ncw: build_core_app_theming ## Build Nextcloud Workspace
 	@echo "[i] No need to re-build right now. Will use version from repository"
 
 add_config_partials: ## Copy custom config files to Nextcloud config
+	@echo "[i] Copying config files..."
 	cp IONOS/configs/*.config.php config/
 
 version.json: ## Generate version file
+	@echo "[i] Generating version.json..."
 	buildDate=$$(date +%s) && \
 	buildRef=$$(git rev-parse --short HEAD) && \
 	ncVersion=$$(php -r 'include("version.php");echo implode(".", $$OC_Version);') && \
 	jq -n --arg buildDate $$buildDate --arg buildRef $$buildRef  --arg ncVersion $$ncVersion '{buildDate: $$buildDate, buildRef: $$buildRef, ncVersion: $$ncVersion}' > version.json && \
-	echo "version.json created" && \
+	echo "[i] version.json created" && \
 	jq . version.json
 
 zip_dependencies: version.json ## Zip relevant files
-	@echo "zip relevant files to $(TARGET_PACKAGE_NAME)" && \
+	@echo "[i] zip relevant files to $(TARGET_PACKAGE_NAME)" && \
 	zip -r "$(TARGET_PACKAGE_NAME)" \
 		IONOS/ \
 		3rdparty/ \
@@ -82,7 +86,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package-lock.json"
 
 build_release: build_ncw add_config_partials zip_dependencies ## Build a release package (build, copy configs and package)
-	@echo "Everything done for a release"
+	@echo "[i] Everything done for a release"
 
 build_locally: .remove_node_modules build_ncw ## Build all for local development
-	@echo "Everything done for local/dev"
+	@echo "[i] Everything done for local/dev"
