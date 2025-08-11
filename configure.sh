@@ -88,6 +88,40 @@ configure_theming() {
 	fi
 }
 
+# Configure Collabora/richdocuments integration
+# Usage: configure_collabora_app
+configure_collabora_app() {
+	log_info "Configuring Collabora integration..."
+	# Disable app initially
+	execute_occ_command app:disable richdocuments
+
+	# Validate required environment variables
+	if ! [ "${COLLABORA_WOPI_URL}" ]; then
+		log_fatal "COLLABORA_WOPI_URL environment variable is not set"
+	fi
+
+	# Configure and enable Collabora
+	execute_occ_command app:enable richdocuments
+	execute_occ_command config:app:set richdocuments wopi_url --value="${COLLABORA_WOPI_URL}"
+	execute_occ_command config:app:set richdocuments public_wopi_url --value="${COLLABORA_WOPI_URL}"
+	execute_occ_command config:app:set richdocuments enabled --value='yes'
+
+	# Configure SSL certificate verification
+	if [ "${COLLABORA_SELF_SIGNED}" = "true" ]; then
+		execute_occ_command config:app:set richdocuments disable_certificate_verification --value="yes"
+	else
+		execute_occ_command config:app:set richdocuments disable_certificate_verification --value="no"
+	fi
+
+	execute_occ_command richdocuments:activate-config
+}
+
+config_apps() {
+	log_info "Configure apps ..."
+
+	configure_collabora_app
+
+}
 
 #===============================================================================
 # Main Execution Function
@@ -104,6 +138,7 @@ main() {
 
 	# Execute configuration steps
 	configure_theming
+	config_apps
 
 	echo "\033[1;32m[i] Nextcloud Workspace configuration completed successfully!\033[0m"
 }
