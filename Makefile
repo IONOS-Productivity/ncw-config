@@ -45,6 +45,7 @@ zip_dependencies: version.json ## Zip relevant files
 		IONOS/ \
 		3rdparty/ \
 		apps/ \
+		apps-external/ \
 		config/ \
 		core/ \
 		dist/ \
@@ -71,6 +72,16 @@ zip_dependencies: version.json ## Zip relevant files
 		.htaccess \
 	-x "apps/theming/img/background/**" \
 	-x "apps/*/tests/**" \
+	-x "apps-*/*/.git" \
+	-x "apps-*/*/composer.json" \
+	-x "apps-*/*/composer.lock" \
+	-x "apps-*/*/composer.phar" \
+	-x "apps-*/*/.tx" \
+	-x "apps-*/*/.github" \
+	-x "apps-*/*/src**" \
+	-x "apps-*/*/node_modules**" \
+	-x "apps-*/*/vendor-bin**" \
+	-x "apps-*/*/tests**" \
 	-x "**/cypress/**" \
 	-x "*.git*" \
 	-x "*.editorconfig*" \
