@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2025 STRATO AG
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-TARGET_PACKAGE_NAME=ncw-server.zip
+# Build configuration
+TARGET_PACKAGE_NAME = ncw-server.zip
 
 .PHONY: help .build_deps add_config_partials build_release build_locally zip_dependencies version.json
 
