@@ -14,10 +14,6 @@ help: ## This help.
 # thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 .DEFAULT_GOAL := help
 
-.remove_node_modules: ## Remove node_modules
-	@echo "[i] Removing node_modules..."
-	rm -rf node_modules
-
 build_core_app_theming: ## Build theming app
 	@echo "[i] Building theming app..."
 	cd apps/theming/composer && \
@@ -88,5 +84,5 @@ zip_dependencies: version.json ## Zip relevant files
 build_release: build_ncw add_config_partials zip_dependencies ## Build a release package (build, copy configs and package)
 	@echo "[i] Everything done for a release"
 
-build_locally: .remove_node_modules build_ncw ## Build all for local development
+build_locally: build_ncw ## Build all for local development
 	@echo "[i] Everything done for local/dev"
