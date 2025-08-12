@@ -9,7 +9,7 @@ TARGET_PACKAGE_NAME = ncw-server.zip
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications
-.PHONY: build_core_app_theming
+.PHONY: build_all_external_apps build_richdocuments_app build_core_app_theming
 # Configuration and packaging
 .PHONY: add_config_partials version.json zip_dependencies
 # Meta targets
@@ -35,6 +35,12 @@ build_ncw: build_core_app_theming ## Build Nextcloud Workspace
 #	npm ci && \
 #	NODE_OPTIONS="--max-old-space-size=4096" npm run build
 	@echo "[i] No need to re-build right now. Will use version from repository"
+
+build_richdocuments_app: ## Install and build richdocuments viewer app
+	cd apps-external/richdocuments && \
+	composer install --no-dev -o && \
+	npm ci && \
+	npm run build
 
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
@@ -102,8 +108,11 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package.json" \
 	-x "package-lock.json"
 
-build_release: build_ncw add_config_partials zip_dependencies ## Build a release package (build, copy configs and package)
+build_all_external_apps: build_richdocuments_app ## Build all external apps
+	@echo "[i] All external apps built successfully"
+
+build_release: build_ncw build_all_external_apps add_config_partials zip_dependencies ## Build a release package (build, copy configs and package)
 	@echo "[i] Everything done for a release"
 
-build_locally: build_ncw ## Build all for local development
+build_locally: build_ncw build_all_external_apps ## Build all for local development
 	@echo "[i] Everything done for local/dev"
