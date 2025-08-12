@@ -12,6 +12,8 @@ TARGET_PACKAGE_NAME = ncw-server.zip
 .PHONY: build_all_external_apps build_richdocuments_app build_core_app_theming
 # Configuration and packaging
 .PHONY: add_config_partials version.json zip_dependencies
+# Pipeline targets for GitLab workflow
+.PHONY: build_after_external_apps package_after_build
 # Meta targets
 .PHONY: build_release build_locally
 
@@ -28,7 +30,6 @@ build_core_app_theming: ## Build theming app
 	@echo "[i] Building theming app..."
 	cd apps/theming/composer && \
 		composer dump-autoload --optimize
-
 
 build_ncw: build_core_app_theming ## Build Nextcloud Workspace
 #	composer install --no-dev -o && \
@@ -110,6 +111,12 @@ zip_dependencies: version.json ## Zip relevant files
 
 build_all_external_apps: build_richdocuments_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
+
+build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
+	@echo "[i] NCW built and config files added"
+
+package_after_build: zip_dependencies ## Create package after build is complete
+	@echo "[i] Package created successfully"
 
 build_release: build_ncw build_all_external_apps add_config_partials zip_dependencies ## Build a release package (build, copy configs and package)
 	@echo "[i] Everything done for a release"
