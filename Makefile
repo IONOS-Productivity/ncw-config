@@ -4,7 +4,16 @@
 # Build configuration
 TARGET_PACKAGE_NAME = ncw-server.zip
 
-.PHONY: help .build_deps add_config_partials build_release build_locally zip_dependencies version.json
+# Core build targets
+.PHONY: help
+# Main Nextcloud build
+.PHONY: build_ncw
+# Applications
+.PHONY: build_core_app_theming
+# Configuration and packaging
+.PHONY: add_config_partials version.json zip_dependencies
+# Meta targets
+.PHONY: build_release build_locally
 
 help: ## This help.
 	@echo "Usage: make [target]"
