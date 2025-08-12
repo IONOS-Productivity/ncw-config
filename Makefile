@@ -9,7 +9,7 @@ TARGET_PACKAGE_NAME = ncw-server.zip
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications
-.PHONY: build_all_external_apps build_richdocuments_app build_core_app_theming
+.PHONY: build_all_external_apps build_dep_viewer_app build_richdocuments_app build_core_app_theming
 # Configuration and packaging
 .PHONY: add_config_partials version.json zip_dependencies
 # Pipeline targets for GitLab workflow
@@ -36,6 +36,12 @@ build_ncw: build_core_app_theming ## Build Nextcloud Workspace
 #	npm ci && \
 #	NODE_OPTIONS="--max-old-space-size=4096" npm run build
 	@echo "[i] No need to re-build right now. Will use version from repository"
+
+build_dep_viewer_app: ## Install and build viewer app
+	cd apps-external/viewer && \
+	composer install --no-dev -o && \
+	npm ci && \
+	npm run build
 
 build_richdocuments_app: ## Install and build richdocuments viewer app
 	cd apps-external/richdocuments && \
@@ -109,7 +115,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package.json" \
 	-x "package-lock.json"
 
-build_all_external_apps: build_richdocuments_app ## Build all external apps
+build_all_external_apps: build_dep_viewer_app build_richdocuments_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
