@@ -78,14 +78,12 @@ configure_server_basics() {
 configure_theming() {
 	log_info "Configuring Nextcloud Workspace theming..."
 
-	execute_occ_command theming:config name "Nextcloud Workspace"
-	execute_occ_command theming:config slogan "powered by IONOS"
 	execute_occ_command theming:config imprintUrl " "
 	execute_occ_command theming:config privacyUrl " "
 	execute_occ_command theming:config primary_color "#003D8F"
 	execute_occ_command config:app:set --value "#ffffff"  -- theming background_color
 	execute_occ_command theming:config disable-user-theming yes
-	execute_occ_command theming:config logo "${LOGO_ABSOLUTE_DIR}/IONOS_logo.svg"
+	execute_occ_command theming:config disable_admin_theming yes
 	#execute_occ_command theming:config favicon "${FAVICON_DIR}/favicon.ico"
 	execute_occ_command config:app:set theming backgroundMime --value backgroundColor
 
