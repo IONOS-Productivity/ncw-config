@@ -55,6 +55,9 @@ build_contacts_app: ## Install and build contacts app
 	npm ci && \
 	npm run build
 
+build_files_antivirus_app: ## Install and build files_antivirus app
+	@echo "[i] Building files_antivirus app not needed as no changes are made"
+
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
 	cp IONOS/configs/*.config.php config/
@@ -121,7 +124,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package.json" \
 	-x "package-lock.json"
 
-build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app ## Build all external apps
+build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_files_antivirus_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
