@@ -128,6 +128,9 @@ config_apps() {
 	log_info "Enable Contacts app"
 	execute_occ_command app:enable contacts
 
+	log_info "Enable files_antivirus app"
+	execute_occ_command app:enable files_antivirus
+
 	log_info "Configure viewer app"
 	execute_occ_command config:app:set --value yes --type string viewer always_show_viewer
 
