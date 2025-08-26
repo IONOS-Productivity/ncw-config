@@ -49,6 +49,12 @@ build_richdocuments_app: ## Install and build richdocuments viewer app
 	npm ci && \
 	npm run build
 
+build_contacts_app: ## Install and build contacts app
+	cd apps-external/contacts && \
+	composer install --no-dev -o && \
+	npm ci && \
+	npm run build
+
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
 	cp IONOS/configs/*.config.php config/
@@ -115,7 +121,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package.json" \
 	-x "package-lock.json"
 
-build_all_external_apps: build_dep_viewer_app build_richdocuments_app ## Build all external apps
+build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
