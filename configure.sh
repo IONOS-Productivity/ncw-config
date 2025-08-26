@@ -125,6 +125,9 @@ configure_collabora_app() {
 config_apps() {
 	log_info "Configure apps ..."
 
+	log_info "Enable Contacts app"
+	execute_occ_command app:enable contacts
+
 	log_info "Configure viewer app"
 	execute_occ_command config:app:set --value yes --type string viewer always_show_viewer
 
