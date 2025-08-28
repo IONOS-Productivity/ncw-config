@@ -55,6 +55,11 @@ build_contacts_app: ## Install and build contacts app
 	npm ci && \
 	npm run build
 
+build_notify_push_app: ## Build notify_push app using cargo
+	cd apps-external/notify_push && \
+	composer install --no-dev -o && \
+	cargo build --release --target=x86_64-unknown-linux-musl
+
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
 	cp IONOS/configs/*.config.php config/
@@ -121,7 +126,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package.json" \
 	-x "package-lock.json"
 
-build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app ## Build all external apps
+build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_notify_push_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
