@@ -122,14 +122,61 @@ configure_collabora_app() {
 	execute_occ_command richdocuments:activate-config
 }
 
+# Configure files_antivirus app
+# Usage: configure_files_antivirus_app
+configure_files_antivirus_app() {
+	log_info "Configure files_antivirus app"
+
+	execute_occ_command app:disable files_antivirus
+
+	# Validate required environment variables
+	_validation_failed=false
+
+	if [ -z "${CLAMAV_HOST}" ]; then
+		log_warning "CLAMAV_HOST environment variable is not set"
+		_validation_failed=true
+	fi
+
+	if [ -z "${CLAMAV_PORT}" ]; then
+		log_warning "CLAMAV_PORT environment variable is not set"
+		_validation_failed=true
+	fi
+
+	if [ -z "${CLAMAV_MAX_FILE_SIZE}" ]; then
+		log_warning "CLAMAV_MAX_FILE_SIZE environment variable is not set"
+		_validation_failed=true
+	fi
+
+	if [ -z "${CLAMAV_MAX_STREAM_LENGTH}" ]; then
+		log_warning "CLAMAV_MAX_STREAM_LENGTH environment variable is not set"
+		_validation_failed=true
+	fi
+
+	# Only proceed if all variables are set
+	if [ "${_validation_failed}" = "true" ]; then
+		log_warning "files_antivirus app configuration skipped due to missing environment variables"
+		return 0
+	fi
+
+	# Configure clamav with validated values
+	execute_occ_command config:app:set files_antivirus av_mode --value="daemon"
+	execute_occ_command config:app:set files_antivirus av_host --value="${CLAMAV_HOST:-clamav.clamav}"
+	execute_occ_command config:app:set files_antivirus av_port --value="${CLAMAV_PORT:-3310}"
+	execute_occ_command config:app:set files_antivirus av_max_file_size --value="${CLAMAV_MAX_FILE_SIZE:-314572800}"
+	execute_occ_command config:app:set files_antivirus av_stream_max_length --value="${CLAMAV_MAX_STREAM_LENGTH:-314572800}"
+
+	execute_occ_command app:enable files_antivirus
+
+	log_info "files_antivirus app configured successfully with host: ${CLAMAV_HOST}, port: ${CLAMAV_PORT}"
+}
+
 config_apps() {
 	log_info "Configure apps ..."
 
 	log_info "Enable Contacts app"
 	execute_occ_command app:enable contacts
 
-	log_info "Enable files_antivirus app"
-	execute_occ_command app:enable files_antivirus
+	configure_files_antivirus_app
 
 	log_info "Configure viewer app"
 	execute_occ_command config:app:set --value yes --type string viewer always_show_viewer
