@@ -122,6 +122,13 @@ configure_collabora_app() {
 	execute_occ_command richdocuments:activate-config
 }
 
+configure_notify_push_app() {
+	log_info "Configure notify_push app"
+
+	# Enable the notify_push app
+	execute_occ_command app:enable notify_push
+}
+
 # Configure files_antivirus app
 # Usage: configure_files_antivirus_app
 configure_files_antivirus_app() {
@@ -185,6 +192,7 @@ config_apps() {
 	execute_occ_command config:app:set --value yes --type string viewer always_show_viewer
 
 	configure_collabora_app
+	configure_notify_push_app
 
 }
 
