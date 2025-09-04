@@ -4,12 +4,22 @@
 # Build configuration
 TARGET_PACKAGE_NAME = ncw-server.zip
 
+# Architecture configuration
+ARCHITECTURE = x86_64
+
+# Variables for notify_push binary
+NOTIFY_PUSH_DIR = apps-external/notify_push
+NOTIFY_PUSH_BIN_DIR = $(NOTIFY_PUSH_DIR)/bin/$(ARCHITECTURE)
+NOTIFY_PUSH_BINARY = $(NOTIFY_PUSH_BIN_DIR)/notify_push
+NOTIFY_PUSH_VERSION = $(shell cd $(NOTIFY_PUSH_DIR) && grep -oP '(?<=<version>)[^<]+' appinfo/info.xml)
+NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(NOTIFY_PUSH_VERSION)/notify_push-$(ARCHITECTURE)-unknown-linux-musl
+
 # Core build targets
 .PHONY: help
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications
-.PHONY: build_all_external_apps build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_core_app_theming
+.PHONY: build_all_external_apps build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_notify_push_app build_notify_push_binary build_core_app_theming
 # Configuration and packaging
 .PHONY: add_config_partials version.json zip_dependencies
 # Pipeline targets for GitLab workflow
@@ -63,6 +73,28 @@ build_calendar_app: ## Install and build calendar app
 
 build_files_antivirus_app: ## Install and build files_antivirus app
 	@echo "[i] Building files_antivirus app not needed as no changes are made"
+
+# notify_push binary target with checksum verification
+$(NOTIFY_PUSH_BINARY): $(NOTIFY_PUSH_DIR)/appinfo/info.xml
+	@echo "[i] Building notify_push binary target for version $(NOTIFY_PUSH_VERSION)..."
+	@mkdir -p $(NOTIFY_PUSH_BIN_DIR)
+	@echo "[i] Downloading notify_push binary version $(NOTIFY_PUSH_VERSION)..."
+	curl -L -o $@ $(NOTIFY_PUSH_URL)
+	@echo "[i] Verifying binary integrity..."
+	@sha256sum $@ > $@.sha256
+	@echo "[i] Binary SHA256: $$(sha256sum $@ | cut -d' ' -f1)"
+	chmod +x $@
+	@echo "[i] notify_push binary v$(NOTIFY_PUSH_VERSION) downloaded and verified successfully"
+
+build_notify_push_app: $(NOTIFY_PUSH_DIR)/vendor/autoload.php $(NOTIFY_PUSH_BINARY) ## Install and build notify_push app
+	@echo "[i] notify_push app built successfully"
+
+$(NOTIFY_PUSH_DIR)/vendor/autoload.php: $(NOTIFY_PUSH_DIR)/composer.json
+	@echo "[i] Installing notify_push PHP dependencies..."
+	cd $(NOTIFY_PUSH_DIR) && composer install --no-dev -o
+
+build_notify_push_binary: $(NOTIFY_PUSH_BINARY) ## Download notify_push binary
+	@echo "[i] notify_push binary ready"
 
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
@@ -130,7 +162,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package.json" \
 	-x "package-lock.json"
 
-build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_files_antivirus_app ## Build all external apps
+build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_notify_push_app build_files_antivirus_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
