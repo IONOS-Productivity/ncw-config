@@ -173,6 +173,9 @@ configure_files_antivirus_app() {
 config_apps() {
 	log_info "Configure apps ..."
 
+	log_info "Enable calendar app"
+	execute_occ_command app:enable calendar
+
 	log_info "Enable Contacts app"
 	execute_occ_command app:enable contacts
 
