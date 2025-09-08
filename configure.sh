@@ -208,27 +208,27 @@ configure_fulltextsearch_apps() {
 	log_info "Installing fulltextsearch core..."
 	execute_occ_command app:install fulltextsearch
 	execute_occ_command app:enable fulltextsearch
-	
+
 	# Install files_fulltextsearch app
 	log_info "Installing files_fulltextsearch..."
 	execute_occ_command app:install files_fulltextsearch
 	execute_occ_command app:enable files_fulltextsearch
-	
+
 	# Install fulltextsearch elasticsearch provider
 	log_info "Installing fulltextsearch_elasticsearch..."
 	execute_occ_command app:install fulltextsearch_elasticsearch
 	execute_occ_command app:enable fulltextsearch_elasticsearch
-	
+
 	# Install files fulltextsearch tesseract OCR support
 	log_info "Installing files_fulltextsearch_tesseract..."
 	execute_occ_command app:install files_fulltextsearch_tesseract
 	execute_occ_command app:enable files_fulltextsearch_tesseract
-	
+
 	# Configure fulltextsearch platform
 	log_info "Configuring fulltextsearch platform..."
 	execute_occ_command config:app:set fulltextsearch search_platform --value="OCA\\FullTextSearch_Elasticsearch\\Platform\\ElasticSearchPlatform"
 	execute_occ_command config:app:set fulltextsearch app_navigation --value="1"
-	
+
 	# Configure Elasticsearch settings
 	log_info "Configuring Elasticsearch settings..."
 	execute_occ_command config:app:set fulltextsearch_elasticsearch elastic_host --value="https://${ELASTIC_NEXTCLOUD_USERNAME}:${ELASTIC_NEXTCLOUD_PASSWORD}@${ELASTIC_HOST:-elasticsearch.elasticsearch}:${ELASTIC_PORT:-9200}"
@@ -236,7 +236,7 @@ configure_fulltextsearch_apps() {
 	execute_occ_command config:app:set fulltextsearch_elasticsearch analyzer_tokenizer --value="standard"
 	execute_occ_command config:app:set fulltextsearch_elasticsearch elastic_ssl_cert --value="/etc/elasticsearch-certs/ca.crt"
 	execute_occ_command config:app:set fulltextsearch_elasticsearch elastic_ssl_cert_verify --value="1"
-	
+
 	# Configure files_fulltextsearch settings
 	log_info "Configuring files_fulltextsearch..."
 	execute_occ_command config:app:set files_fulltextsearch files_audio --value="0"
@@ -249,7 +249,7 @@ configure_fulltextsearch_apps() {
 	execute_occ_command config:app:set files_fulltextsearch files_office --value="1"
 	execute_occ_command config:app:set files_fulltextsearch files_pdf --value="1"
 	execute_occ_command config:app:set files_fulltextsearch files_size --value="20"
-	
+
 	# Enable debug logging for fulltext search
 	if [ "${ELASTIC_DEBUG_ENABLED}" = "1" ] || [ "${ELASTIC_DEBUG_ENABLED}" = "true" ]; then
 		log_info "Enabling debug logging..."
@@ -284,6 +284,9 @@ config_apps() {
 
 	log_info "Enable Spreed app"
 	execute_occ_command app:enable spreed
+
+	log_info "Enable NCW Apps Menu app"
+	execute_occ_command app:enable ncw_apps_menu
 
 	configure_files_antivirus_app
 
