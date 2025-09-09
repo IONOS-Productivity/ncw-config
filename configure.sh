@@ -276,6 +276,9 @@ config_apps() {
 	log_info "Enable Contacts app"
 	execute_occ_command app:enable contacts
 
+	log_info "Enable tasks app"
+	execute_occ_command app:enable tasks
+
 	configure_files_antivirus_app
 
 	log_info "Configure viewer app"
