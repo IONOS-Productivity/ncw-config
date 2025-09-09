@@ -19,7 +19,7 @@ NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications
-.PHONY: build_all_external_apps build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_notify_push_app build_notify_push_binary build_core_app_theming
+.PHONY: build_all_external_apps build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_activity_app build_notify_push_app build_notify_push_binary build_core_app_theming
 # Configuration and packaging
 .PHONY: add_config_partials version.json zip_dependencies
 # Pipeline targets for GitLab workflow
@@ -67,6 +67,12 @@ build_contacts_app: ## Install and build contacts app
 
 build_calendar_app: ## Install and build calendar app
 	cd apps-external/calendar && \
+	composer install --no-dev -o && \
+	npm ci && \
+	npm run build
+
+build_activity_app: ## Install and build activity app
+	cd apps-external/activity && \
 	composer install --no-dev -o && \
 	npm ci && \
 	npm run build
@@ -162,7 +168,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package.json" \
 	-x "package-lock.json"
 
-build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_notify_push_app build_files_antivirus_app ## Build all external apps
+build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_activity_app build_notify_push_app build_files_antivirus_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
