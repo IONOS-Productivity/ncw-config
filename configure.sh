@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-FileCopyrightText: 2025 STRATO AG
+# SPDX-FileCopyrightText: 2025 STRATO GmbH
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 SCRIPT_DIR="$(dirname "${0}")"
