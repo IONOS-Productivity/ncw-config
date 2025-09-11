@@ -1,0 +1,16 @@
+version = 1
+SPDX-PackageName = "ncw IONOS"
+SPDX-PackageSupplier = "STRATO GmbH"
+SPDX-PackageDownloadLocation = "NOASSERTION"
+
+[[annotations]]
+path = ["composer.json", "composer.lock"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 STRATO GmbH"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "IONOS_logo.svg"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 STRATO GmbH"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
