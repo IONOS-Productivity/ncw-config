@@ -19,7 +19,7 @@ NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications
-.PHONY: build_all_external_apps build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_activity_app build_notify_push_app build_notify_push_binary build_core_app_theming
+.PHONY: build_all_external_apps build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_activity_app build_notify_push_app build_notify_push_binary build_fulltextsearch_apps build_core_app_theming
 # Configuration and packaging
 .PHONY: add_config_partials version.json zip_dependencies
 # Pipeline targets for GitLab workflow
@@ -101,6 +101,19 @@ $(NOTIFY_PUSH_DIR)/vendor/autoload.php: $(NOTIFY_PUSH_DIR)/composer.json
 
 build_notify_push_binary: $(NOTIFY_PUSH_BINARY) ## Download notify_push binary
 	@echo "[i] notify_push binary ready"
+	
+build_fulltextsearch_app: ## Install and build fulltextsearch app
+	@echo "[i] Building fulltextsearch app not needed"
+
+build_files_fulltextsearch_app: ## Install and build files_fulltextsearch app
+	@echo "[i] Building files_fulltextsearch app not needed"
+
+build_fulltextsearch_elasticsearch_app: ## Install and build fulltextsearch_elasticsearch app
+	cd apps-external/fulltextsearch_elasticsearch && \
+	composer install --no-dev -o
+
+build_fulltextsearch_apps: build_fulltextsearch_app build_files_fulltextsearch_app build_fulltextsearch_elasticsearch_app ## Build all fulltextsearch apps
+	@echo "[i] All fulltextsearch apps built successfully"
 
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
