@@ -109,10 +109,12 @@ build_notify_push_binary: $(NOTIFY_PUSH_BINARY) ## Download notify_push binary
 	@echo "[i] notify_push binary ready"
 
 build_fulltextsearch_app: ## Install and build fulltextsearch app
-	@echo "[i] Building fulltextsearch app not needed"
+	cd apps-external/fulltextsearch && \
+	composer install --no-dev -o
 
 build_files_fulltextsearch_app: ## Install and build files_fulltextsearch app
-	@echo "[i] Building files_fulltextsearch app not needed"
+	cd apps-external/files_fulltextsearch && \
+	composer install --no-dev -o
 
 build_fulltextsearch_elasticsearch_app: ## Install and build fulltextsearch_elasticsearch app
 	cd apps-external/fulltextsearch_elasticsearch && \
