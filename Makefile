@@ -184,6 +184,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "apps-*/*/src/*" \
 	-x "apps-*/*/src" \
 	-x "apps-*/*/node_modules**" \
+	-x "apps-*/*/node_modules**" \
 	-x "apps-*/*/vendor-bin**" \
 	-x "apps-*/*/tests**" \
 	-x "**/cypress/**" \
