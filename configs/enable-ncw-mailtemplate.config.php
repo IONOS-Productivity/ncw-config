@@ -6,5 +6,5 @@
  */
 
 $CONFIG = [
-	'mail_template_class' => 'OCA\Mailtemplate\EMailTemplate',
+	'mail_template_class' => 'OCA\NcwMailtemplate\EMailTemplate',
 ];
