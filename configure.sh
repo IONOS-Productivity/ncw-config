@@ -294,8 +294,8 @@ config_apps() {
 
 	configure_fulltextsearch_apps
 
-	log_info "Enable mailtemplate app"
-	execute_occ_command app:enable mailtemplate
+	log_info "Enable ncw_mailtemplate app"
+	execute_occ_command app:enable ncw_mailtemplate
 }
 
 #===============================================================================
