@@ -205,23 +205,19 @@ configure_fulltextsearch_apps() {
 	fi
 
 	# Install fulltextsearch core app
-	log_info "Installing fulltextsearch core..."
-	execute_occ_command app:install fulltextsearch
+	log_info "Enabling fulltextsearch core..."
 	execute_occ_command app:enable fulltextsearch
 
 	# Install files_fulltextsearch app
-	log_info "Installing files_fulltextsearch..."
-	execute_occ_command app:install files_fulltextsearch
+	log_info "Enabling files_fulltextsearch..."
 	execute_occ_command app:enable files_fulltextsearch
 
 	# Install fulltextsearch elasticsearch provider
-	log_info "Installing fulltextsearch_elasticsearch..."
-	execute_occ_command app:install fulltextsearch_elasticsearch
+	log_info "Enabling fulltextsearch_elasticsearch..."
 	execute_occ_command app:enable fulltextsearch_elasticsearch
 
 	# Install files fulltextsearch tesseract OCR support
-	log_info "Installing files_fulltextsearch_tesseract..."
-	execute_occ_command app:install files_fulltextsearch_tesseract
+	log_info "Enabling files_fulltextsearch_tesseract..."
 	execute_occ_command app:enable files_fulltextsearch_tesseract
 
 	# Configure fulltextsearch platform
