@@ -293,6 +293,9 @@ config_apps() {
 	configure_notify_push_app
 
 	configure_fulltextsearch_apps
+
+	log_info "Enable groupfolders app"
+	execute_occ_command app:enable groupfolders
 }
 
 #===============================================================================
