@@ -296,6 +296,9 @@ config_apps() {
 
 	log_info "Enable ncw_mailtemplate app"
 	execute_occ_command app:enable ncw_mailtemplate
+
+	log_info "Enable groupfolders app"
+	execute_occ_command app:enable groupfolders
 }
 
 # Configure IONOS mailconfig api with API credentials
