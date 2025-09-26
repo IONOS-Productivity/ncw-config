@@ -295,6 +295,22 @@ config_apps() {
 	configure_fulltextsearch_apps
 }
 
+# Configure IONOS mailconfig api with API credentials
+# Usage: configure_ionos_mailconfig_api
+configure_ionos_mailconfig_api() {
+	log_info "Configuring ionos mailconfig api with API credentials..."
+
+	# Check required environment variables
+	if [ -z "${IONOS_MAILCONFIG_API_URL}" ] || [ -z "${IONOS_MAILCONFIG_API_USER}" ] || [ -z "${IONOS_MAILCONFIG_API_PASS}" ]; then
+		log_warning "IONOS_MAILCONFIG_API_URL, IONOS_MAILCONFIG_API_USER or IONOS_MAILCONFIG_API_PASS not set, skipping configuration of nc_ionos_mail app"
+		return 0
+	fi
+
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string nc_ionos_mail ionos_mail_base_url
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string nc_ionos_mail basic_auth_user
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string nc_ionos_mail basic_auth_pass
+}
+
 #===============================================================================
 # Main Execution Function
 #===============================================================================
@@ -310,6 +326,7 @@ main() {
 
 	# Execute configuration steps
 	configure_theming
+	configure_ionos_mailconfig_api
 	config_apps
 
 	echo "\033[1;32m[i] Nextcloud Workspace configuration completed successfully!\033[0m"
