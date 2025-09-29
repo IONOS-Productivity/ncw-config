@@ -104,6 +104,12 @@ build_groupfolders_app: ## Install and build groupfolders app
 	npm ci && \
 	npm run build
 
+build_tables_app: ## Install and build tables app
+	cd apps-external/tables && \
+	composer install --no-dev -o && \
+	npm ci && \
+	npm run build
+
 # notify_push binary target with checksum verification
 $(NOTIFY_PUSH_BINARY): $(NOTIFY_PUSH_DIR)/appinfo/info.xml
 	@echo "[i] Building notify_push binary target for version $(NOTIFY_PUSH_VERSION)..."
