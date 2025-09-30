@@ -284,6 +284,9 @@ config_apps() {
 	log_info "Enable NCW Apps Menu app"
 	execute_occ_command app:enable ncw_apps_menu
 
+	log_info "Enable Text app"
+	execute_occ_command app:enable text
+
 	configure_files_antivirus_app
 
 	log_info "Configure viewer app"
