@@ -169,6 +169,12 @@ build_forms_app: ## Install and build forms app
 	npm ci && \
 	npm run build
 
+build_whiteboard_app: ## Install and build whiteboard app
+	cd apps-external/whiteboard && \
+	composer install --no-dev -o && \
+	npm ci && \
+	npm run build
+
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
 	cp IONOS/configs/*.config.php config/
@@ -235,7 +241,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package.json" \
 	-x "package-lock.json"
 
-build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_activity_app build_mail_app build_notify_push_app build_spreed_app build_files_antivirus_app build_tasks_app build_ncw_mailtemplate_app build_ncw_apps_menu_app build_notes_app build_groupfolders_app build_deck_app ## Build all external apps
+build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_activity_app build_mail_app build_notify_push_app build_spreed_app build_files_antivirus_app build_tasks_app build_ncw_mailtemplate_app build_ncw_apps_menu_app build_notes_app build_groupfolders_app build_deck_app build_whiteboard_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
