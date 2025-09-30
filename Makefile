@@ -163,6 +163,12 @@ build_spreed_app: ## Install and build spreed app
 	npm ci && \
 	npm run build
 
+build_forms_app: ## Install and build forms app
+	cd apps-external/forms && \
+	composer install --no-dev -o && \
+	npm ci && \
+	npm run build
+
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
 	cp IONOS/configs/*.config.php config/
