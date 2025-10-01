@@ -272,6 +272,9 @@ config_apps() {
 	log_info "Enable calendar app"
 	execute_occ_command app:enable calendar
 
+	log_info "Enable circles app"
+	execute_occ_command app:enable circles
+
 	log_info "Enable activity app"
 	execute_occ_command app:enable activity
 
