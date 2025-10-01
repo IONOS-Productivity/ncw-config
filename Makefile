@@ -19,7 +19,7 @@ NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications
-.PHONY: build_all_external_apps build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_activity_app build_mail_app build_notify_push_app build_notify_push_binary build_fulltextsearch_apps build_spreed_app build_core_app_theming build_tasks_app build_ncw_mailtemplate_app build_ncw_apps_menu_app build_notes_app build_groupfolders_app build_text_app
+.PHONY: build_all_external_apps build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_circles_app build_activity_app build_mail_app build_notify_push_app build_notify_push_binary build_fulltextsearch_apps build_spreed_app build_core_app_theming build_tasks_app build_ncw_mailtemplate_app build_ncw_apps_menu_app build_notes_app build_groupfolders_app build_text_app
 # Configuration and packaging
 .PHONY: add_config_partials version.json zip_dependencies
 # Pipeline targets for GitLab workflow
@@ -70,6 +70,10 @@ build_calendar_app: ## Install and build calendar app
 	composer install --no-dev -o && \
 	npm ci && \
 	npm run build
+
+build_circles_app: ## Install and build circles app
+	cd apps-external/circles && \
+    composer install --no-dev -o
 
 build_activity_app: ## Install and build activity app
 	cd apps-external/activity && \
@@ -247,7 +251,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package.json" \
 	-x "package-lock.json"
 
-build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_activity_app build_mail_app build_notify_push_app build_spreed_app build_files_antivirus_app build_tasks_app build_ncw_mailtemplate_app build_ncw_apps_menu_app build_notes_app build_groupfolders_app build_deck_app build_whiteboard_app build_text_app ## Build all external apps
+build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_circles_app build_activity_app build_mail_app build_notify_push_app build_spreed_app build_files_antivirus_app build_tasks_app build_ncw_mailtemplate_app build_ncw_apps_menu_app build_notes_app build_groupfolders_app build_deck_app build_whiteboard_app build_text_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
