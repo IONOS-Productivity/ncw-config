@@ -40,6 +40,7 @@ build_core_app_theming: ## Build theming app
 	@echo "[i] Building theming app..."
 	cd apps/theming/composer && \
 		composer dump-autoload --optimize
+	@echo "[✓] theming app built successfully"
 
 build_ncw: build_core_app_theming ## Build Nextcloud Workspace
 #	composer install --no-dev -o && \
@@ -172,6 +173,7 @@ build_forms_app: ## Install and build forms app
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
 	cp IONOS/configs/*.config.php config/
+	@echo "[✓] Config files copied successfully"
 
 version.json: ## Generate version file
 	@echo "[i] Generating version.json..."
@@ -234,6 +236,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "composer.phar" \
 	-x "package.json" \
 	-x "package-lock.json"
+	@echo "[i] Package $(TARGET_PACKAGE_NAME) created successfully"
 
 build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_activity_app build_mail_app build_notify_push_app build_spreed_app build_files_antivirus_app build_tasks_app build_ncw_mailtemplate_app build_ncw_apps_menu_app build_notes_app build_groupfolders_app build_deck_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
