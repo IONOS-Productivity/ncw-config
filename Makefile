@@ -19,12 +19,33 @@ NOTIFY_PUSH_BINARY = $(NOTIFY_PUSH_BIN_DIR)/notify_push
 NOTIFY_PUSH_VERSION = $(shell cd $(NOTIFY_PUSH_DIR) && grep -oP '(?<=<version>)[^<]+' appinfo/info.xml)
 NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(NOTIFY_PUSH_VERSION)/notify_push-$(ARCHITECTURE)-unknown-linux-musl
 
+# App directories that need full build (composer + npm + build)
+FULL_BUILD_APPS = \
+	activity \
+	calendar \
+	contacts \
+	deck \
+	forms \
+	groupfolders \
+	mail \
+	ncw_apps_menu \
+	notes \
+	richdocuments \
+	spreed \
+	tasks \
+	text \
+	viewer \
+	whiteboard
+
+# Generate build targets dynamically
+FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
+
 # Core build targets
 .PHONY: help
 # Main Nextcloud build
 .PHONY: build_ncw
-# Applications
-.PHONY: build_all_external_apps build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_circles_app build_activity_app build_mail_app build_notify_push_app build_notify_push_binary build_fulltextsearch_apps build_spreed_app build_core_app_theming build_tasks_app build_ncw_mailtemplate_app build_ncw_apps_menu_app build_notes_app build_groupfolders_app build_text_app
+# Applications - dynamically generated
+.PHONY: build_all_external_apps build_notify_push_app build_notify_push_binary build_fulltextsearch_apps build_ncw_mailtemplate_app build_core_app_theming build_files_antivirus_app $(FULL_BUILD_TARGETS)
 # Configuration and packaging
 .PHONY: add_config_partials version.json zip_dependencies
 # Pipeline targets for GitLab workflow
@@ -35,7 +56,12 @@ NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(
 help: ## This help.
 	@echo "Usage: make [target]"
 	@echo ""
+	@echo "Available targets:"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "Individual app build targets:"
+	@echo "  Full build apps (composer + npm + build):"
+	@for app in $(FULL_BUILD_APPS); do printf "\033[36m%-30s\033[0m Build $$app app (full build)\n" "build_$${app}_app"; done
 # HELP
 # This will output the help for each task
 # thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
@@ -71,50 +97,18 @@ build_ncw: build_core_app_theming ## Build Nextcloud Workspace
 #	NODE_OPTIONS="--max-old-space-size=4096" npm run build
 	@echo "[i] No need to re-build right now. Will use version from repository"
 
-build_dep_viewer_app: ## Install and build viewer app
-	$(call build_full_app,viewer)
-
-build_richdocuments_app: ## Install and build richdocuments viewer app
-	$(call build_full_app,richdocuments)
-
-build_contacts_app: ## Install and build contacts app
-	$(call build_full_app,contacts)
-
-build_calendar_app: ## Install and build calendar app
-	$(call build_full_app,calendar)
+# Dynamic rules for full build apps
+$(FULL_BUILD_TARGETS): build_%_app:
+	$(call build_full_app,$(patsubst build_%_app,%,$@))
 
 build_circles_app: ## Install and build circles app
 	$(call build_composer_app,circles)
 
-build_activity_app: ## Install and build activity app
-	$(call build_full_app,activity)
-
-build_ncw_apps_menu_app: ## Install and build ncw_apps_menu app
-	$(call build_full_app,ncw_apps_menu)
-
 build_files_antivirus_app: ## Install and build files_antivirus app
 	@echo "[i] Building files_antivirus app not needed as no changes are made"
 
-build_mail_app: ## Install and build mail app
-	$(call build_full_app,mail)
-
-build_notes_app: ## Install and build notes app
-	$(call build_full_app,notes)
-
-build_tasks_app: ## Install and build tasks app
-	$(call build_full_app,tasks)
-
 build_ncw_mailtemplate_app: ## Install and build mailtemplate app
 	$(call build_composer_app,ncw_mailtemplate)
-
-build_groupfolders_app: ## Install and build groupfolders app
-	$(call build_full_app,groupfolders)
-
-build_deck_app: ## Install and build deck app
-	$(call build_full_app,deck)
-
-build_text_app: ## Install and build text app
-	$(call build_full_app,text)
 
 # notify_push binary target with checksum verification
 $(NOTIFY_PUSH_BINARY): $(NOTIFY_PUSH_DIR)/appinfo/info.xml
@@ -149,15 +143,6 @@ build_fulltextsearch_elasticsearch_app: ## Install and build fulltextsearch_elas
 
 build_fulltextsearch_apps: build_fulltextsearch_app build_files_fulltextsearch_app build_fulltextsearch_elasticsearch_app ## Build all fulltextsearch apps
 	@echo "[i] All fulltextsearch apps built successfully"
-
-build_spreed_app: ## Install and build spreed app
-	$(call build_full_app,spreed)
-
-build_forms_app: ## Install and build forms app
-	$(call build_full_app,forms)
-
-build_whiteboard_app: ## Install and build whiteboard app
-	$(call build_full_app,whiteboard)
 
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
@@ -227,7 +212,7 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package-lock.json"
 	@echo "[i] Package $(TARGET_PACKAGE_NAME) created successfully"
 
-build_all_external_apps: build_dep_viewer_app build_richdocuments_app build_contacts_app build_calendar_app build_circles_app build_activity_app build_mail_app build_notify_push_app build_spreed_app build_files_antivirus_app build_tasks_app build_ncw_mailtemplate_app build_ncw_apps_menu_app build_notes_app build_groupfolders_app build_deck_app build_whiteboard_app build_text_app ## Build all external apps
+build_all_external_apps: build_notify_push_app build_files_antivirus_app build_ncw_mailtemplate_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
