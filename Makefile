@@ -3,6 +3,12 @@
 
 # Build configuration
 TARGET_PACKAGE_NAME = ncw-server.zip
+# Set parallel jobs with load balancing to prevent system overload
+# The following line sets MAKEFLAGS to use the number of available processors for parallel jobs,
+# and sets the load average to 1.5 times the number of processors.
+# It uses 'bc' for floating-point arithmetic; if 'bc' is not available, it falls back to using the integer value from 'nproc'.
+# This ensures the build does not overload the system, even if 'bc' is missing.
+MAKEFLAGS += --jobs=$(shell nproc) --load-average=$(shell echo "$(shell nproc) * 1.5" | bc 2>/dev/null || echo $(shell nproc))
 
 # Architecture configuration
 ARCHITECTURE = x86_64
