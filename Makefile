@@ -74,6 +74,8 @@ NOTHING_TO_BUILD_TARGETS = $(patsubst %,build_%_app,$(NOTHING_TO_BUILD_APPS))
 .PHONY: build_release build_locally clean
 # Validation targets
 .PHONY: validate_external_apps validate_all
+# Matrix generation
+.PHONY: generate_external_apps_matrix
 
 help: ## This help.
 	@echo "Usage: make [target]"
@@ -92,6 +94,8 @@ help: ## This help.
 	@echo "Validation targets:"
 	@echo "  validate_external_apps     Validate all external apps configuration"
 	@echo "  validate_all               Run all validation tasks"
+	@echo "Matrix generation targets:"
+	@echo "  generate_external_apps_matrix  Generate external apps matrix YAML file"
 # HELP
 # This will output the help for each task
 # thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
@@ -564,3 +568,35 @@ validate_all: ## Run all validation tasks
 	@echo "[i] Running validation..."
 	@$(MAKE) -f IONOS/Makefile validate_external_apps
 	@echo "[✓] Validation completed successfully"
+
+generate_external_apps_matrix: ## Generate external-apps-matrix.yml file with app configuration details
+	@echo "[i] Generating external apps matrix YAML file..."
+	@echo "apps-external:"
+	@bash -c ' \
+	# Process all configured apps \
+	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS) notify_push"; \
+	for app in $$all_configured_apps; do \
+		if [ -d "apps-external/$$app" ]; then \
+			echo "  - name: $$app"; \
+			echo "    path: apps-external/$$app"; \
+			\
+			# Check for npm (package.json) \
+			if [ -f "apps-external/$$app/package.json" ]; then \
+				echo "    has_npm: true"; \
+			else \
+				echo "    has_npm: false"; \
+			fi; \
+			\
+			# Check for composer (composer.json) \
+			if [ -f "apps-external/$$app/composer.json" ]; then \
+				echo "    has_composer: true"; \
+			else \
+				echo "    has_composer: false"; \
+			fi; \
+			\
+			# Determine makefile target \
+			makefile_target="build_$${app}_app"; \
+			echo "    makefile_target: $$makefile_target"; \
+			echo ""; \
+		fi; \
+	done'
