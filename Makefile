@@ -51,6 +51,14 @@ define build_full_app
 	@echo "[✓] $(1) app built successfully"
 endef
 
+# Common function to build apps with composer only
+define build_composer_app
+	@echo "[i] Building $(1) app..."
+	@cd apps-external/$(1) && \
+		$(COMPOSER_INSTALL)
+	@echo "[✓] $(1) app built successfully"
+endef
+
 build_core_app_theming: ## Build theming app
 	@echo "[i] Building theming app..."
 	cd apps/theming/composer && \
@@ -76,8 +84,7 @@ build_calendar_app: ## Install and build calendar app
 	$(call build_full_app,calendar)
 
 build_circles_app: ## Install and build circles app
-	cd apps-external/circles && \
-    composer install --no-dev -o
+	$(call build_composer_app,circles)
 
 build_activity_app: ## Install and build activity app
 	$(call build_full_app,activity)
@@ -98,8 +105,7 @@ build_tasks_app: ## Install and build tasks app
 	$(call build_full_app,tasks)
 
 build_ncw_mailtemplate_app: ## Install and build mailtemplate app
-	cd apps-external/ncw_mailtemplate && \
-	composer install --no-dev -o
+	$(call build_composer_app,ncw_mailtemplate)
 
 build_groupfolders_app: ## Install and build groupfolders app
 	$(call build_full_app,groupfolders)
@@ -133,16 +139,13 @@ build_notify_push_binary: $(NOTIFY_PUSH_BINARY) ## Download notify_push binary
 	@echo "[i] notify_push binary ready"
 
 build_fulltextsearch_app: ## Install and build fulltextsearch app
-	cd apps-external/fulltextsearch && \
-	composer install --no-dev -o
+	$(call build_composer_app,fulltextsearch)
 
 build_files_fulltextsearch_app: ## Install and build files_fulltextsearch app
-	cd apps-external/files_fulltextsearch && \
-	composer install --no-dev -o
+	$(call build_composer_app,files_fulltextsearch)
 
 build_fulltextsearch_elasticsearch_app: ## Install and build fulltextsearch_elasticsearch app
-	cd apps-external/fulltextsearch_elasticsearch && \
-	composer install --no-dev -o
+	$(call build_composer_app,fulltextsearch_elasticsearch)
 
 build_fulltextsearch_apps: build_fulltextsearch_app build_files_fulltextsearch_app build_fulltextsearch_elasticsearch_app ## Build all fulltextsearch apps
 	@echo "[i] All fulltextsearch apps built successfully"
