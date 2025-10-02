@@ -7,6 +7,11 @@ TARGET_PACKAGE_NAME = ncw-server.zip
 # Architecture configuration
 ARCHITECTURE = x86_64
 
+# Common build commands
+COMPOSER_INSTALL = composer install --no-dev -o --no-interaction
+NPM_INSTALL = npm ci --prefer-offline --no-audit
+NPM_BUILD = npm run build
+
 # Variables for notify_push binary
 NOTIFY_PUSH_DIR = apps-external/notify_push
 NOTIFY_PUSH_BIN_DIR = $(NOTIFY_PUSH_DIR)/bin/$(ARCHITECTURE)
@@ -36,6 +41,16 @@ help: ## This help.
 # thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 .DEFAULT_GOAL := help
 
+# Common function to build apps with full build process
+define build_full_app
+	@echo "[i] Building $(1) app..."
+	@cd apps-external/$(1) && \
+		$(COMPOSER_INSTALL) && \
+		$(NPM_INSTALL) && \
+		$(NPM_BUILD)
+	@echo "[✓] $(1) app built successfully"
+endef
+
 build_core_app_theming: ## Build theming app
 	@echo "[i] Building theming app..."
 	cd apps/theming/composer && \
@@ -49,87 +64,51 @@ build_ncw: build_core_app_theming ## Build Nextcloud Workspace
 	@echo "[i] No need to re-build right now. Will use version from repository"
 
 build_dep_viewer_app: ## Install and build viewer app
-	cd apps-external/viewer && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,viewer)
 
 build_richdocuments_app: ## Install and build richdocuments viewer app
-	cd apps-external/richdocuments && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,richdocuments)
 
 build_contacts_app: ## Install and build contacts app
-	cd apps-external/contacts && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,contacts)
 
 build_calendar_app: ## Install and build calendar app
-	cd apps-external/calendar && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,calendar)
 
 build_circles_app: ## Install and build circles app
 	cd apps-external/circles && \
     composer install --no-dev -o
 
 build_activity_app: ## Install and build activity app
-	cd apps-external/activity && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,activity)
 
 build_ncw_apps_menu_app: ## Install and build ncw_apps_menu app
-	cd apps-external/ncw_apps_menu && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,ncw_apps_menu)
 
 build_files_antivirus_app: ## Install and build files_antivirus app
 	@echo "[i] Building files_antivirus app not needed as no changes are made"
 
 build_mail_app: ## Install and build mail app
-	cd apps-external/mail && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,mail)
 
 build_notes_app: ## Install and build notes app
-	cd apps-external/notes && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,notes)
 
 build_tasks_app: ## Install and build tasks app
-	cd apps-external/tasks && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,tasks)
 
 build_ncw_mailtemplate_app: ## Install and build mailtemplate app
 	cd apps-external/ncw_mailtemplate && \
 	composer install --no-dev -o
 
 build_groupfolders_app: ## Install and build groupfolders app
-	cd apps-external/groupfolders && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,groupfolders)
 
 build_deck_app: ## Install and build deck app
-	cd apps-external/deck && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,deck)
 
 build_text_app: ## Install and build text app
-	cd apps-external/text && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,text)
 
 # notify_push binary target with checksum verification
 $(NOTIFY_PUSH_BINARY): $(NOTIFY_PUSH_DIR)/appinfo/info.xml
@@ -169,22 +148,13 @@ build_fulltextsearch_apps: build_fulltextsearch_app build_files_fulltextsearch_a
 	@echo "[i] All fulltextsearch apps built successfully"
 
 build_spreed_app: ## Install and build spreed app
-	cd apps-external/spreed && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,spreed)
 
 build_forms_app: ## Install and build forms app
-	cd apps-external/forms && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,forms)
 
 build_whiteboard_app: ## Install and build whiteboard app
-	cd apps-external/whiteboard && \
-	composer install --no-dev -o && \
-	npm ci && \
-	npm run build
+	$(call build_full_app,whiteboard)
 
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
