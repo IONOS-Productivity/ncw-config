@@ -25,7 +25,7 @@ NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(
 # Pipeline targets for GitLab workflow
 .PHONY: build_after_external_apps package_after_build
 # Meta targets
-.PHONY: build_release build_locally
+.PHONY: build_release build_locally clean
 
 help: ## This help.
 	@echo "Usage: make [target]"
@@ -268,3 +268,10 @@ build_release: build_ncw build_all_external_apps add_config_partials zip_depende
 
 build_locally: build_ncw build_all_external_apps ## Build all for local development
 	@echo "[i] Everything done for local/dev"
+
+clean: ## Clean build artifacts
+	@echo "[i] Cleaning build artifacts..."
+	@rm -f $(TARGET_PACKAGE_NAME)
+	@rm -f version.json
+	@rm -f $(NOTIFY_PUSH_BINARY) $(NOTIFY_PUSH_BINARY).sha256
+	@echo "[✓] Clean completed"
