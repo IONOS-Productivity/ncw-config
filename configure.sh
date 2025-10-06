@@ -284,6 +284,9 @@ config_apps() {
 	log_info "Enable tasks app"
 	execute_occ_command app:enable tasks
 
+	log_info "Enable text app"
+	execute_occ_command app:enable text
+
 	log_info "Enable Spreed app"
 	execute_occ_command app:enable spreed
 
