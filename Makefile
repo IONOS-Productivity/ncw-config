@@ -34,6 +34,7 @@ FULL_BUILD_APPS = \
 	deck \
 	forms \
 	groupfolders \
+	integration_openai \
 	mail \
 	ncw_apps_menu \
 	notes \

@@ -316,6 +316,9 @@ config_apps() {
 
 	log_info "Enable assistant app"
 	execute_occ_command app:enable assistant
+
+	log_info "Enable integration_openai app"
+	execute_occ_command app:enable integration_openai
 }
 
 # Configure IONOS mailconfig api with API credentials
