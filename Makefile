@@ -35,15 +35,23 @@ FULL_BUILD_APPS = \
 	tasks \
 	viewer
 
+# App directories that need only composer
+COMPOSER_ONLY_APPS = \
+	ncw_mailtemplate \
+	fulltextsearch \
+	files_fulltextsearch \
+	fulltextsearch_elasticsearch
+
 # Generate build targets dynamically
 FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
+COMPOSER_ONLY_TARGETS = $(patsubst %,build_%_app,$(COMPOSER_ONLY_APPS))
 
 # Core build targets
 .PHONY: help
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications - dynamically generated
-.PHONY: build_all_external_apps build_notify_push_app build_notify_push_binary build_fulltextsearch_apps build_ncw_mailtemplate_app build_core_app_theming build_files_antivirus_app $(FULL_BUILD_TARGETS)
+.PHONY: build_all_external_apps build_notify_push_app build_notify_push_binary build_fulltextsearch_apps build_core_app_theming build_files_antivirus_app $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS)
 # Configuration and packaging
 .PHONY: add_config_partials version.json zip_dependencies
 # Pipeline targets for GitLab workflow
@@ -60,6 +68,8 @@ help: ## This help.
 	@echo "Individual app build targets:"
 	@echo "  Full build apps (composer + npm + build):"
 	@for app in $(FULL_BUILD_APPS); do printf "\033[36m%-30s\033[0m Build $$app app (full build)\n" "build_$${app}_app"; done
+	@echo "  Composer-only apps:"
+	@for app in $(COMPOSER_ONLY_APPS); do printf "\033[36m%-30s\033[0m Build $$app app (composer only)\n" "build_$${app}_app"; done
 # HELP
 # This will output the help for each task
 # thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
@@ -99,11 +109,13 @@ build_ncw: build_core_app_theming ## Build Nextcloud Workspace
 $(FULL_BUILD_TARGETS): build_%_app:
 	$(call build_full_app,$(patsubst build_%_app,%,$@))
 
+# Dynamic rules for composer-only apps
+$(COMPOSER_ONLY_TARGETS): build_%_app:
+	$(call build_composer_app,$(patsubst build_%_app,%,$@))
+
+# Special case apps that don't follow the pattern
 build_files_antivirus_app: ## Install and build files_antivirus app
 	@echo "[i] Building files_antivirus app not needed as no changes are made"
-
-build_ncw_mailtemplate_app: ## Install and build mailtemplate app
-	$(call build_composer_app,ncw_mailtemplate)
 
 # notify_push binary target with checksum verification
 $(NOTIFY_PUSH_BINARY): $(NOTIFY_PUSH_DIR)/appinfo/info.xml
@@ -126,15 +138,6 @@ $(NOTIFY_PUSH_DIR)/vendor/autoload.php: $(NOTIFY_PUSH_DIR)/composer.json
 
 build_notify_push_binary: $(NOTIFY_PUSH_BINARY) ## Download notify_push binary
 	@echo "[i] notify_push binary ready"
-
-build_fulltextsearch_app: ## Install and build fulltextsearch app
-	$(call build_composer_app,fulltextsearch)
-
-build_files_fulltextsearch_app: ## Install and build files_fulltextsearch app
-	$(call build_composer_app,files_fulltextsearch)
-
-build_fulltextsearch_elasticsearch_app: ## Install and build fulltextsearch_elasticsearch app
-	$(call build_composer_app,fulltextsearch_elasticsearch)
 
 build_fulltextsearch_apps: build_fulltextsearch_app build_files_fulltextsearch_app build_fulltextsearch_elasticsearch_app ## Build all fulltextsearch apps
 	@echo "[i] All fulltextsearch apps built successfully"
@@ -207,7 +210,8 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "package-lock.json"
 	@echo "[i] Package $(TARGET_PACKAGE_NAME) created successfully"
 
-build_all_external_apps: build_notify_push_app build_files_antivirus_app build_ncw_mailtemplate_app ## Build all external apps
+# Parallel build targets
+build_all_external_apps: $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) build_notify_push_app build_files_antivirus_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
