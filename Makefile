@@ -48,16 +48,21 @@ COMPOSER_ONLY_APPS = \
 	files_fulltextsearch \
 	fulltextsearch_elasticsearch
 
+# App directories that need nothing to build (no changes made during build)
+NOTHING_TO_BUILD_APPS = \
+	files_antivirus
+
 # Generate build targets dynamically
 FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
 COMPOSER_ONLY_TARGETS = $(patsubst %,build_%_app,$(COMPOSER_ONLY_APPS))
+NOTHING_TO_BUILD_TARGETS = $(patsubst %,build_%_app,$(NOTHING_TO_BUILD_APPS))
 
 # Core build targets
 .PHONY: help
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications - dynamically generated
-.PHONY: build_all_external_apps build_notify_push_app build_notify_push_binary build_fulltextsearch_apps build_core_app_theming build_files_antivirus_app $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS)
+.PHONY: build_all_external_apps build_notify_push_app build_notify_push_binary build_fulltextsearch_apps build_core_app_theming $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(NOTHING_TO_BUILD_TARGETS)
 # Configuration and packaging
 .PHONY: add_config_partials version.json zip_dependencies
 # Pipeline targets for GitLab workflow
@@ -76,6 +81,8 @@ help: ## This help.
 	@for app in $(FULL_BUILD_APPS); do printf "\033[36m%-30s\033[0m Build $$app app (full build)\n" "build_$${app}_app"; done
 	@echo "  Composer-only apps:"
 	@for app in $(COMPOSER_ONLY_APPS); do printf "\033[36m%-30s\033[0m Build $$app app (composer only)\n" "build_$${app}_app"; done
+	@echo "  Nothing to build apps:"
+	@for app in $(NOTHING_TO_BUILD_APPS); do printf "\033[36m%-30s\033[0m Nothing to build for $$app app\n" "build_$${app}_app"; done
 # HELP
 # This will output the help for each task
 # thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
@@ -119,9 +126,9 @@ $(FULL_BUILD_TARGETS): build_%_app:
 $(COMPOSER_ONLY_TARGETS): build_%_app:
 	$(call build_composer_app,$(patsubst build_%_app,%,$@))
 
-# Special case apps that don't follow the pattern
-build_files_antivirus_app: ## Install and build files_antivirus app
-	@echo "[i] Building files_antivirus app not needed as no changes are made"
+# Dynamic rules for apps with nothing to build
+$(NOTHING_TO_BUILD_TARGETS): build_%_app:
+	@echo "[i] Nothing to build for $$(patsubst build_%_app,%,$@) app"
 
 # notify_push binary target with checksum verification
 $(NOTIFY_PUSH_BINARY): $(NOTIFY_PUSH_DIR)/appinfo/info.xml
@@ -217,7 +224,7 @@ zip_dependencies: version.json ## Zip relevant files
 	@echo "[i] Package $(TARGET_PACKAGE_NAME) created successfully"
 
 # Parallel build targets
-build_all_external_apps: $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) build_notify_push_app build_files_antivirus_app ## Build all external apps
+build_all_external_apps: $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(NOTHING_TO_BUILD_TARGETS) build_notify_push_app ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
