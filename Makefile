@@ -28,6 +28,7 @@ NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(
 # App directories that need full build (composer + npm + build)
 FULL_BUILD_APPS = \
 	activity \
+	assistant \
 	calendar \
 	contacts \
 	deck \
