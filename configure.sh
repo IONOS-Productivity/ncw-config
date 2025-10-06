@@ -313,6 +313,9 @@ config_apps() {
 
 	log_info "Enable groupfolders app"
 	execute_occ_command app:enable groupfolders
+
+	log_info "Enable assistant app"
+	execute_occ_command app:enable assistant
 }
 
 # Configure IONOS mailconfig api with API credentials
