@@ -30,6 +30,7 @@ FULL_BUILD_APPS = \
 	activity \
 	assistant \
 	calendar \
+	collectives \
 	contacts \
 	deck \
 	forms \
