@@ -294,6 +294,28 @@ config_apps() {
 
 	configure_fulltextsearch_apps
 
+	log_info "Enable ncw_mailtemplate app"
+	execute_occ_command app:enable ncw_mailtemplate
+
+	log_info "Enable groupfolders app"
+	execute_occ_command app:enable groupfolders
+}
+
+# Configure IONOS mailconfig api with API credentials
+# Usage: configure_ionos_mailconfig_api
+configure_ionos_mailconfig_api() {
+	log_info "Configuring ionos mailconfig api with API credentials..."
+
+	# Check required environment variables
+	if [ -z "${IONOS_MAILCONFIG_API_URL}" ] || [ -z "${IONOS_MAILCONFIG_API_USER}" ] || [ -z "${IONOS_MAILCONFIG_API_PASS}" ]; then
+		log_warning "Required environment variables not set (IONOS_MAILCONFIG_API_URL, IONOS_MAILCONFIG_API_USER or IONOS_MAILCONFIG_API_PASS), skipping mailconfig API configuration"
+		return 0
+	fi
+
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
+
 	log_info "Enable groupfolders app"
 	execute_occ_command app:enable groupfolders
 }
@@ -314,6 +336,7 @@ main() {
 	# Execute configuration steps
 	configure_theming
 	config_apps
+	configure_ionos_mailconfig_api
 
 	echo "\033[1;32m[i] Nextcloud Workspace configuration completed successfully!\033[0m"
 }
