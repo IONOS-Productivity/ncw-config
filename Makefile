@@ -118,6 +118,12 @@ build_groupfolders_app: ## Install and build groupfolders app
 	npm ci && \
 	npm run build
 
+build_tables_app: ## Install and build tables app
+	cd apps-external/tables && \
+	composer install --no-dev -o && \
+	npm ci && \
+	npm run build
+
 build_deck_app: ## Install and build deck app
 	cd apps-external/deck && \
 	composer install --no-dev -o && \

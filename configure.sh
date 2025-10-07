@@ -329,6 +329,7 @@ configure_ionos_mailconfig_api() {
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
+
 }
 
 #===============================================================================
