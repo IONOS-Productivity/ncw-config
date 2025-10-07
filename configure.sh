@@ -259,6 +259,12 @@ configure_fulltextsearch_apps() {
 	log_info "Fulltext search plugins installation and configuration completed"
 }
 
+configure_whiteboard_app() {
+	log_info "Configure whiteboard app"
+	execute_occ_command config:app:set whiteboard collabBackendUrl --value="${APP_WHITEBOARD_COLLABBACKEND_URL}:${APP_WHITEBOARD_COLLABBACKEND_PORT:-3002}"
+	execute_occ_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
+}
+
 
 config_apps() {
 	log_info "Configure apps ..."
@@ -278,6 +284,9 @@ config_apps() {
 	log_info "Enable tasks app"
 	execute_occ_command app:enable tasks
 
+	log_info "Enable text app"
+	execute_occ_command app:enable text
+
 	log_info "Enable Spreed app"
 	execute_occ_command app:enable spreed
 
@@ -293,6 +302,8 @@ config_apps() {
 	configure_notify_push_app
 
 	configure_fulltextsearch_apps
+
+	configure_whiteboard_app
 
 	log_info "Enable ncw_mailtemplate app"
 	execute_occ_command app:enable ncw_mailtemplate
