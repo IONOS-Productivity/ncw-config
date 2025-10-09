@@ -265,6 +265,22 @@ configure_whiteboard_app() {
 	execute_occ_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
 }
 
+configure_admin_delegation() {
+	log_info "Configure only-delegated-settings"
+
+	execute_occ_command config:system:set --type boolean --value true -- settings.only-delegated-settings
+
+	# List of admin delegation classes to configure
+	_admin_delegation_classes="
+	"
+
+	# Add each delegation class
+	for _class in ${_admin_delegation_classes}; do
+		# Skip empty lines
+		[ -n "${_class}" ] && execute_occ_command admin-delegation:add "${_class}" admin
+	done
+}
+
 
 config_apps() {
 	log_info "Configure apps ..."
@@ -319,6 +335,8 @@ config_apps() {
 
 	log_info "Enable integration_openai app"
 	execute_occ_command app:enable integration_openai
+
+	configure_admin_delegation
 }
 
 # Configure IONOS mailconfig api with API credentials
