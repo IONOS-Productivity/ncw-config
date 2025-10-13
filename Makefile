@@ -41,6 +41,7 @@ FULL_BUILD_APPS = \
 	notes \
 	richdocuments \
 	spreed \
+	tables \
 	tasks \
 	text \
 	viewer \
