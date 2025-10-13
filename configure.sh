@@ -272,6 +272,7 @@ configure_admin_delegation() {
 
 	# List of admin delegation classes to configure
 	_admin_delegation_classes="
+OCA\\SystemTags\\Settings\\Admin
 	"
 
 	# Add each delegation class
