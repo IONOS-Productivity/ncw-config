@@ -273,6 +273,7 @@ configure_admin_delegation() {
 	# List of admin delegation classes to configure
 	_admin_delegation_classes="
 OCA\\SystemTags\\Settings\\Admin
+OCA\\Password_Policy\\Settings\\Settings
 	"
 
 	# Add each delegation class
