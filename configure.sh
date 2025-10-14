@@ -493,6 +493,8 @@ _process_app_delegations() {
 configure_ionos_mailconfig_api() {
 	log_info "Configuring IONOS mailconfig API with credentials..."
 
+	execute_occ_command config:app:set --value no --type string mail ionos-mailconfig-enabled
+
 	# Check required environment variables
 	if ! validate_env_vars IONOS_MAILCONFIG_API_URL IONOS_MAILCONFIG_API_USER IONOS_MAILCONFIG_API_PASS; then
 		log_warning "Skipping mailconfig API configuration due to missing environment variables"
@@ -502,6 +504,8 @@ configure_ionos_mailconfig_api() {
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
+
+	execute_occ_command config:app:set --value yes --type string mail ionos-mailconfig-enabled
 }
 
 # Configure IONOS AI Model Hub with API credentials
