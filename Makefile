@@ -44,7 +44,8 @@ FULL_BUILD_APPS = \
 	tasks \
 	text \
 	viewer \
-	whiteboard
+	whiteboard \
+	password_policy
 
 # App directories that need only composer
 COMPOSER_ONLY_APPS = \
