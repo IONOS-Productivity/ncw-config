@@ -19,6 +19,7 @@ readonly LOGO_ABSOLUTE_DIR
 readonly ADMIN_DELEGATION_MAP="
 systemtags:OCA\\SystemTags\\Settings\\Admin
 password_policy:OCA\\Password_Policy\\Settings\\Settings
+user_ldap:OCA\\User_LDAP\\Settings\\Admin
 "
 
 #===============================================================================
