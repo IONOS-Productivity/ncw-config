@@ -246,7 +246,6 @@ configure_fulltextsearch_apps() {
 	# Enable debug logging for fulltext search
 	if [ "${ELASTIC_DEBUG_ENABLED}" = "1" ] || [ "${ELASTIC_DEBUG_ENABLED}" = "true" ]; then
 		log_info "Enabling debug logging..."
-		execute_occ_command config:system:set loglevel --value="0"
 		execute_occ_command config:app:set fulltextsearch_elasticsearch debug --value="1"
 		execute_occ_command config:app:set fulltextsearch debug --value="1"
 	else
