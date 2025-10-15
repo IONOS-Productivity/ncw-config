@@ -72,14 +72,6 @@ verify_nextcloud_installation() {
 	fi
 }
 
-# Configure basic Nextcloud Workspace server settings
-# Usage: configure_server_basics
-configure_server_basics() {
-	log_info "[i] Configuring Nextcloud Workspace server basics..."
-
-	execute_occ_command config:system:set lookup_server --value=""
-}
-
 configure_theming() {
 	log_info "Configuring Nextcloud Workspace theming..."
 
