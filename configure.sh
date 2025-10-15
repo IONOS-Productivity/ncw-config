@@ -273,7 +273,15 @@ configure_whiteboard_app() {
 configure_admin_delegation() {
 	log_info "Configure only-delegated-settings"
 
-	execute_occ_command config:system:set --type boolean --value true -- settings.only-delegated-settings
+	# Check if settings.only-delegated-settings is true
+	_delegated_settings_status=$(execute_occ_command config:system:get settings.only-delegated-settings 2>/dev/null)
+
+	if [ "${_delegated_settings_status}" = "true" ]; then
+		log_info "settings.only-delegated-settings is properly configured as: ${_delegated_settings_status}"
+	else
+		log_error "settings.only-delegated-settings is not set to true (current value: ${_delegated_settings_status})"
+		log_error "Admin delegation configuration requires settings.only-delegated-settings to be enabled"
+	fi
 
 	# List of admin delegation classes to configure
 	_admin_delegation_classes="
