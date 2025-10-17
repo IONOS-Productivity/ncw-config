@@ -502,10 +502,13 @@ configure_ionos_ai_model_hub() {
 	execute_occ_command config:app:set --value "${IONOSAI_URL}" --type string integration_openai url
 	execute_occ_command config:app:set --value "${IONOSAI_TOKEN}" --sensitive --type string integration_openai api_key
 
-	# Configure service name with default fallback
-	_service_name="${IONOSAI_SERVICE_NAME:-IONOS AI Model Hub}"
-	log_info "Setting AI service name to: ${_service_name}"
-	execute_occ_command config:app:set --value "${_service_name}" --type string integration_openai service_name
+	# Configure default text-to-text model
+	_text_model="${IONOSAI_TEXT_MODEL:-openai/gpt-oss-120b}"
+	execute_occ_command config:app:set --value "${_text_model}" --type string integration_openai default_completion_model_id
+
+	# Configure default text-to-image model
+	_image_model="${IONOSAI_IMAGE_MODEL:-black-forest-labs/FLUX.1-schnell}"
+	execute_occ_command config:app:set --value "${_image_model}" --type string integration_openai default_image_model_id
 
 	log_info "IONOS AI Model Hub configuration completed successfully"
 }
