@@ -363,8 +363,7 @@ configure_ionos_mailconfig_api() {
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
 }
 
-#Configure IONOS AI Model Hub with API credentials
-# Usage: configure_ionos_ai_model_hub
+# Configure IONOS AI Model Hub with API credentials
 configure_ionos_ai_model_hub() {
 
     log_info "Configuring IONOS AI Model Hub with API credentials..."
@@ -382,7 +381,7 @@ configure_ionos_ai_model_hub() {
     execute_occ_command config:app:set --value "${IONOSAI_URL}" --type string integration_openai url
     execute_occ_command config:app:set --value "${IONOSAI_TOKEN}" --sensitive --type string integration_openai api_key
 
-	# Configure service name with default fallback
+		# Configure service name with default fallback
     _service_name="${IONOSAI_SERVICE_NAME:-IONOS AI Model Hub}"
     log_info "Setting AI service name to: ${_service_name}"
     execute_occ_command config:app:set --value "${_service_name}" --type string integration_openai service_name
@@ -407,7 +406,6 @@ main() {
 	configure_theming
 	config_apps
 	configure_ionos_mailconfig_api
-	configure_ionos_ai_model_hub
 
 	echo "\033[1;32m[i] Nextcloud Workspace configuration completed successfully!\033[0m"
 }
