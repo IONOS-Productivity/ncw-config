@@ -274,17 +274,71 @@ configure_admin_delegation() {
 		log_error "Admin delegation configuration requires settings.only-delegated-settings to be enabled"
 	fi
 
-	# List of admin delegation classes to configure
-	_admin_delegation_classes="
-OCA\\SystemTags\\Settings\\Admin
-OCA\\Password_Policy\\Settings\\Settings
+	# Define app-to-class mapping for admin delegation
+	# Format: "app_name:delegation_class"
+	_app_delegation_map="
+systemtags:OCA\\SystemTags\\Settings\\Admin
+password_policy:OCA\\Password_Policy\\Settings\\Settings
+user_ldap:OCA\\User_LDAP\\Settings\\Admin
 	"
 
-	# Add each delegation class
-	for _class in ${_admin_delegation_classes}; do
+	# Get app list in JSON format for easier parsing
+	_enabled_apps=$(execute_occ_command app:list --enabled --output=json_pretty 2>/dev/null | jq -r '.enabled | keys[]' 2>/dev/null || echo "")
+	_disabled_apps=$(execute_occ_command app:list --disabled --output=json_pretty 2>/dev/null | jq -r '.disabled | keys[]' 2>/dev/null || echo "")
+	
+	# Store original app states
+	_app_states=""
+	for _mapping in ${_app_delegation_map}; do
 		# Skip empty lines
-		[ -n "${_class}" ] && execute_occ_command admin-delegation:add "${_class}" admin
+		[ -z "${_mapping}" ] && continue
+		
+		_app_name=$(echo "${_mapping}" | cut -d':' -f1)
+		
+		# Check if app is enabled
+		if echo "${_enabled_apps}" | grep -q "^${_app_name}$"; then
+			_app_states="${_app_states}${_app_name}:enabled "
+			log_info "App ${_app_name} is currently enabled"
+		# Check if app is disabled
+		elif echo "${_disabled_apps}" | grep -q "^${_app_name}$"; then
+			_app_states="${_app_states}${_app_name}:disabled "
+			log_info "App ${_app_name} is currently disabled, will enable temporarily"
+			execute_occ_command app:enable "${_app_name}"
+		else
+			log_warning "App ${_app_name} not found, skipping delegation setup"
+		fi
 	done
+
+	# Add delegation classes (apps should be enabled now)
+	for _mapping in ${_app_delegation_map}; do
+		# Skip empty lines
+		[ -z "${_mapping}" ] && continue
+		
+		_app_name=$(echo "${_mapping}" | cut -d':' -f1)
+		_class=$(echo "${_mapping}" | cut -d':' -f2-)
+		
+		# Add delegation if app exists and is enabled
+		if echo "${_enabled_apps}" | grep -q "^${_app_name}$" || echo "${_disabled_apps}" | grep -q "^${_app_name}$"; then
+			log_info "Adding admin delegation for ${_class}"
+			execute_occ_command admin-delegation:add "${_class}" admin
+		fi
+	done
+
+	# Restore original app states with better parsing
+	log_info "Restoring original app states..."
+	if [ -n "${_app_states}" ]; then
+		for _state in ${_app_states}; do
+			# Ensure we have a valid state entry
+			if [ -n "${_state}" ] && echo "${_state}" | grep -q ":"; then
+				_app_name=$(echo "${_state}" | cut -d':' -f1)
+				_original_state=$(echo "${_state}" | cut -d':' -f2)
+				
+				if [ "${_original_state}" = "disabled" ]; then
+					log_info "Restoring ${_app_name} to disabled state"
+					execute_occ_command app:disable "${_app_name}"
+				fi
+			fi
+		done
+	fi
 }
 
 
