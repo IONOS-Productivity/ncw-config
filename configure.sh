@@ -10,6 +10,18 @@ LOGO_ABSOLUTE_DIR="$(cd "${NEXTCLOUD_DIR}/IONOS" && pwd)"
 readonly LOGO_ABSOLUTE_DIR
 
 #===============================================================================
+# Configuration Constants
+#===============================================================================
+
+# Admin delegation map: defines which app settings classes should be delegated
+# Format: app_name:full_class_path (one per line)
+# Each entry maps an app to its admin settings class that will be delegated
+readonly ADMIN_DELEGATION_MAP="
+systemtags:OCA\\SystemTags\\Settings\\Admin
+password_policy:OCA\\Password_Policy\\Settings\\Settings
+"
+
+#===============================================================================
 # Logging Functions
 #===============================================================================
 
@@ -308,11 +320,8 @@ configure_admin_delegation() {
 		return 1
 	fi
 
-	# Map of app:class delegations to configure
-	_app_delegation_map="
-systemtags:OCA\\SystemTags\\Settings\\Admin
-password_policy:OCA\\Password_Policy\\Settings\\Settings
-	"
+	# Use the delegation map defined at script start
+	_app_delegation_map="${ADMIN_DELEGATION_MAP}"
 
 	# Parse delegation map and group by app
 	_current_app=""
