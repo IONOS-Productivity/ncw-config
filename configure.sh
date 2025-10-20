@@ -9,20 +9,6 @@ readonly NEXTCLOUD_DIR
 LOGO_ABSOLUTE_DIR="$(cd "${NEXTCLOUD_DIR}/IONOS" && pwd)"
 readonly LOGO_ABSOLUTE_DIR
 
-# Execute NextCloud OCC command with error handling
-# Usage: execute_occ_command <command> [args...]
-execute_occ_command() {
-	# Check if this is a config:system:set command and warn about partial config
-	if [ "${1}" = "config:system:set" ]; then
-		log_warning "config:system:set should be avoided. Use PHP <foo>.config.php files in configs/ directory instead. Command: ${*}"
-	fi
-
-	if ! php occ "${@}"; then
-		log_error "Failed to execute OCC command: ${*}"
-		return 1
-	fi
-}
-
 # Log error message to stderr
 # Usage: log_error <message>
 log_error() {
@@ -48,6 +34,19 @@ log_info() {
 	echo "[i] ${*}"
 }
 
+# Execute NextCloud OCC command with error handling
+# Usage: execute_occ_command <command> [args...]
+execute_occ_command() {
+	# Check if this is a config:system:set command and warn about partial config
+	if [ "${1}" = "config:system:set" ]; then
+		log_warning "config:system:set should be avoided. Use PHP <foo>.config.php files in configs/ directory instead. Command: ${*}"
+	fi
+
+	if ! php occ "${@}"; then
+		log_error "Failed to execute OCC command: ${*}"
+		return 1
+	fi
+}
 
 # Validate required environment variables
 # Usage: validate_env_vars <var1> <var2> ...
