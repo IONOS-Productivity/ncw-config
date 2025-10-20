@@ -60,7 +60,7 @@ check_dependencies() {
 # Usage: verify_nextcloud_installation
 verify_nextcloud_installation() {
 	log_info "Verifying Nextcloud Workspace installation status..."
-	_main_status="$( execute_occ_command status 2>/dev/null | grep 'installed: ' | sed -r 's/^.*installed: (.+)$/\1/' )"
+	_main_status="$(execute_occ_command status 2>/dev/null | grep 'installed: ' | sed -r 's/^.*installed: (.+)$/\1/')"
 
 	# Parse validation
 	if [ "${_main_status}" != "true" ] && [ "${_main_status}" != "false" ]; then
