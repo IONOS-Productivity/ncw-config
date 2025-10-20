@@ -39,6 +39,7 @@ FULL_BUILD_APPS = \
 	mail \
 	ncw_apps_menu \
 	notes \
+	notifications \
 	richdocuments \
 	spreed \
 	tables \
