@@ -38,6 +38,12 @@ log_info() {
 	echo "[i] ${*}"
 }
 
+# Log success message
+# Usage: log_success <message>
+log_success() {
+	echo "\033[1;32m[✓] ${*}\033[0m"
+}
+
 #===============================================================================
 # Helper Functions
 #===============================================================================
@@ -407,7 +413,7 @@ main() {
 	configure_apps
 	configure_ionos_mailconfig_api
 
-	echo "\033[1;32m[i] Nextcloud Workspace configuration completed successfully!\033[0m"
+	log_success "Nextcloud Workspace configuration completed successfully!"
 }
 
 # Execute main function with all script arguments
