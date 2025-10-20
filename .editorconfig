@@ -21,3 +21,7 @@ indent_style = space
 [{*.yaml,*.yml}]
 indent_size = 2
 indent_style = space
+
+[LICENSES/**]
+insert_final_newline = unset
+indent_style = unset
