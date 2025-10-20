@@ -82,6 +82,16 @@ validate_env_vars() {
 	return 0
 }
 
+# Enable a Nextcloud app with logging
+# Usage: enable_app <app_name> [display_name]
+enable_app() {
+	_app_name="${1}"
+	_display_name="${2:-${1}}"
+
+	log_info "Enable ${_display_name} app"
+	execute_occ_command app:enable "${_app_name}"
+}
+
 # Check if required dependencies are available
 # Usage: check_dependencies
 check_dependencies() {
@@ -346,33 +356,18 @@ configure_ionos_ai_model_hub() {
 configure_apps() {
 	log_info "Configuring Nextcloud apps..."
 
-	log_info "Enable calendar app"
-	execute_occ_command app:enable calendar
+	# Enable core productivity apps
+	enable_app calendar "Calendar"
+	enable_app circles "Circles"
+	enable_app activity "Activity"
+	enable_app contacts "Contacts"
+	enable_app mail "Mail"
+	enable_app tasks "Tasks"
+	enable_app text "Text"
+	enable_app spreed "Spreed"
+	enable_app ncw_apps_menu "NCW Apps Menu"
 
-	log_info "Enable circles app"
-	execute_occ_command app:enable circles
-
-	log_info "Enable activity app"
-	execute_occ_command app:enable activity
-
-	log_info "Enable Contacts app"
-	execute_occ_command app:enable contacts
-
-	log_info "Enable mail app"
-	execute_occ_command app:enable mail
-
-	log_info "Enable tasks app"
-	execute_occ_command app:enable tasks
-
-	log_info "Enable text app"
-	execute_occ_command app:enable text
-
-	log_info "Enable Spreed app"
-	execute_occ_command app:enable spreed
-
-	log_info "Enable NCW Apps Menu app"
-	execute_occ_command app:enable ncw_apps_menu
-
+	# Configure specialized apps
 	configure_files_antivirus_app
 	configure_viewer_app
 	configure_collabora_app
@@ -380,18 +375,13 @@ configure_apps() {
 	configure_fulltextsearch_apps
 	configure_whiteboard_app
 
-	log_info "Enable ncw_mailtemplate app"
-	execute_occ_command app:enable ncw_mailtemplate
+	# Enable additional apps
+	enable_app ncw_mailtemplate "NCW Mail Template"
+	enable_app groupfolders "Group Folders"
+	enable_app assistant "Assistant"
+	enable_app integration_openai "OpenAI Integration"
 
-	log_info "Enable groupfolders app"
-	execute_occ_command app:enable groupfolders
-
-	log_info "Enable assistant app"
-	execute_occ_command app:enable assistant
-
-	log_info "Enable integration_openai app"
-	execute_occ_command app:enable integration_openai
-
+	# Configure admin features
 	configure_admin_delegation
 	configure_ionos_ai_model_hub
 }
