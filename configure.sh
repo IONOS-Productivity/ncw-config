@@ -9,6 +9,10 @@ readonly NEXTCLOUD_DIR
 LOGO_ABSOLUTE_DIR="$(cd "${NEXTCLOUD_DIR}/IONOS" && pwd)"
 readonly LOGO_ABSOLUTE_DIR
 
+#===============================================================================
+# Logging Functions
+#===============================================================================
+
 # Log error message to stderr
 # Usage: log_error <message>
 log_error() {
@@ -33,6 +37,10 @@ log_warning() {
 log_info() {
 	echo "[i] ${*}"
 }
+
+#===============================================================================
+# Helper Functions
+#===============================================================================
 
 # Execute NextCloud OCC command with error handling
 # Usage: execute_occ_command <command> [args...]
