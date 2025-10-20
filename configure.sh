@@ -383,8 +383,10 @@ _process_app_delegations() {
 	fi
 
 	# Add delegations for this app
-	for _class in ${_delegation_classes}; do
-		[ -n "${_class}" ] && execute_occ_command admin-delegation:add "${_class}" admin
+	echo "${_delegation_classes}" | while read -r _class; do
+		if [ -n "${_class}" ]; then
+			execute_occ_command admin-delegation:add "${_class}" admin
+		fi
 	done
 
 	# Disable app if it was temporarily enabled
