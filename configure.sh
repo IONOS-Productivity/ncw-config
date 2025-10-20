@@ -377,9 +377,7 @@ configure_apps() {
 	configure_viewer_app
 	configure_collabora_app
 	configure_notify_push_app
-
 	configure_fulltextsearch_apps
-
 	configure_whiteboard_app
 
 	log_info "Enable ncw_mailtemplate app"
@@ -395,7 +393,6 @@ configure_apps() {
 	execute_occ_command app:enable integration_openai
 
 	configure_admin_delegation
-
 	configure_ionos_ai_model_hub
 }
 
