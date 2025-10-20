@@ -98,6 +98,10 @@ check_dependencies() {
 	if ! which php >/dev/null 2>&1; then
 		log_fatal "php is required but not found in PATH"
 	fi
+
+	if ! which jq >/dev/null 2>&1; then
+		log_fatal "jq is required but not found in PATH"
+	fi
 }
 
 # Verify Nextcloud Workspace installation status
@@ -296,17 +300,90 @@ configure_admin_delegation() {
 		log_error "Admin delegation configuration requires settings.only-delegated-settings to be enabled"
 	fi
 
-	# List of admin delegation classes to configure
-	_admin_delegation_classes="
-OCA\\SystemTags\\Settings\\Admin
-OCA\\Password_Policy\\Settings\\Settings
+	# Get app list as JSON
+	_app_list_json=$(execute_occ_command app:list --output json)
+	_occ_status=$?
+	if [ "${_occ_status}" -ne 0 ] || [ -z "${_app_list_json}" ]; then
+		log_error "Failed to retrieve app list as JSON. Aborting admin delegation configuration."
+		return 1
+	fi
+
+	# Map of app:class delegations to configure
+	_app_delegation_map="
+systemtags:OCA\\SystemTags\\Settings\\Admin
+password_policy:OCA\\Password_Policy\\Settings\\Settings
 	"
 
-	# Add each delegation class
-	for _class in ${_admin_delegation_classes}; do
+	# Parse delegation map and group by app
+	_current_app=""
+	_delegations_for_app=""
+
+	for _entry in ${_app_delegation_map}; do
 		# Skip empty lines
+		[ -z "${_entry}" ] && continue
+
+		# Validate entry format: must contain exactly one colon
+		if [ "$(echo "${_entry}" | awk -F':' '{print NF-1}')" -ne 1 ]; then
+			log_error "Invalid delegation entry format (expected 'app:class'): '${_entry}'"
+			continue
+		fi
+
+		# Extract app and class from entry (format: app:class)
+		_app=$(echo "${_entry}" | cut -d':' -f1)
+		_class=$(echo "${_entry}" | cut -d':' -f2-)
+
+		# Check if this is a new app
+		if [ "${_current_app}" != "${_app}" ] && [ -n "${_current_app}" ]; then
+			# Check if current app is enabled using jq
+			_is_enabled=$(echo "${_app_list_json}" | jq -r ".enabled.\"${_current_app}\" // empty" 2>/dev/null)
+			# Process delegations for previous app
+			_process_app_delegations "${_current_app}" "${_delegations_for_app}" "${_is_enabled}"
+			_delegations_for_app=""
+		fi
+
+		_current_app="${_app}"
+		_delegations_for_app="${_delegations_for_app} ${_class}"
+	done
+
+	# Process last app's delegations
+	if [ -n "${_current_app}" ]; then
+		_is_enabled=$(echo "${_app_list_json}" | jq -r ".enabled.\"${_current_app}\" // empty" 2>/dev/null)
+		_process_app_delegations "${_current_app}" "${_delegations_for_app}" "${_is_enabled}"
+	fi
+}
+
+# Helper function to process delegations for a single app
+# Usage: _process_app_delegations <app_name> <delegation_classes> <is_enabled>
+_process_app_delegations() {
+	_app_name="${1}"
+	_delegation_classes="${2}"
+	_is_enabled="${3}"
+
+	_should_disable=false
+	if [ -z "${_is_enabled}" ]; then
+		log_info "App '${_app_name}' is disabled, enabling temporarily for delegation..."
+		if execute_occ_command app:enable "${_app_name}"; then
+			_should_disable=true
+		else
+			log_error "Failed to enable app '${_app_name}'. Skipping delegation configuration for this app."
+			return 1
+		fi
+	else
+		log_info "App '${_app_name}' is already enabled"
+	fi
+
+	# Add delegations for this app
+	for _class in ${_delegation_classes}; do
 		[ -n "${_class}" ] && execute_occ_command admin-delegation:add "${_class}" admin
 	done
+
+	# Disable app if it was temporarily enabled
+	if [ "${_should_disable}" = true ]; then
+		log_info "Disabling app '${_app_name}' after delegation configuration..."
+		if ! execute_occ_command app:disable "${_app_name}"; then
+			log_warning "Failed to disable app '${_app_name}' after delegation configuration. App may remain enabled."
+		fi
+	fi
 }
 
 # Configure IONOS mailconfig api with API credentials
