@@ -451,6 +451,7 @@ configure_apps() {
 	enable_app activity "Activity"
 	enable_app contacts "Contacts"
 	enable_app mail "Mail"
+	enable_app notifications "Notifications"
 	enable_app tasks "Tasks"
 	enable_app text "Text"
 	enable_app spreed "Spreed"
