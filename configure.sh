@@ -264,6 +264,13 @@ configure_whiteboard_app() {
 	execute_occ_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
 }
 
+# Configure viewer app
+# Usage: configure_viewer_app
+configure_viewer_app() {
+	log_info "Configuring viewer app..."
+	execute_occ_command config:app:set --value yes --type string viewer always_show_viewer
+}
+
 # Configure admin delegation
 # Usage: configure_admin_delegation
 configure_admin_delegation() {
@@ -367,10 +374,7 @@ configure_apps() {
 	execute_occ_command app:enable ncw_apps_menu
 
 	configure_files_antivirus_app
-
-	log_info "Configure viewer app"
-	execute_occ_command config:app:set --value yes --type string viewer always_show_viewer
-
+	configure_viewer_app
 	configure_collabora_app
 	configure_notify_push_app
 
