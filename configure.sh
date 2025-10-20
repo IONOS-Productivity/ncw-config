@@ -326,7 +326,7 @@ configure_ionos_ai_model_hub() {
 	log_info "IONOS AI Model Hub configuration completed successfully"
 }
 
-config_apps() {
+configure_apps() {
 	log_info "Configuring Nextcloud apps..."
 
 	log_info "Enable calendar app"
@@ -400,7 +400,7 @@ main() {
 
 	# Execute configuration steps
 	configure_theming
-	config_apps
+	configure_apps
 	configure_ionos_mailconfig_api
 
 	echo "\033[1;32m[i] Nextcloud Workspace configuration completed successfully!\033[0m"
