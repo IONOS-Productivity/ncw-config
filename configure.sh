@@ -120,16 +120,14 @@ configure_collabora_app() {
 }
 
 configure_notify_push_app() {
-	log_info "Configure notify_push app"
-
-	# Enable the notify_push app
+	log_info "Configuring notify_push app..."
 	execute_occ_command app:enable notify_push
 }
 
 # Configure files_antivirus app
 # Usage: configure_files_antivirus_app
 configure_files_antivirus_app() {
-	log_info "Configure files_antivirus app"
+	log_info "Configuring files_antivirus app..."
 
 	execute_occ_command app:disable files_antivirus
 
@@ -256,13 +254,13 @@ configure_fulltextsearch_apps() {
 }
 
 configure_whiteboard_app() {
-	log_info "Configure whiteboard app"
+	log_info "Configuring whiteboard app..."
 	execute_occ_command config:app:set whiteboard collabBackendUrl --value="${APP_WHITEBOARD_COLLABBACKEND_URL}:${APP_WHITEBOARD_COLLABBACKEND_PORT:-3002}"
 	execute_occ_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
 }
 
 configure_admin_delegation() {
-	log_info "Configure only-delegated-settings"
+	log_info "Configuring admin delegation..."
 
 	# Check if settings.only-delegated-settings is true
 	_delegated_settings_status=$(execute_occ_command config:system:get settings.only-delegated-settings 2>/dev/null)
@@ -290,7 +288,7 @@ OCA\\Password_Policy\\Settings\\Settings
 # Configure IONOS mailconfig api with API credentials
 # Usage: configure_ionos_mailconfig_api
 configure_ionos_mailconfig_api() {
-	log_info "Configuring ionos mailconfig api with API credentials..."
+	log_info "Configuring IONOS mailconfig API with credentials..."
 
 	# Check required environment variables
 	if [ -z "${IONOS_MAILCONFIG_API_URL}" ] || [ -z "${IONOS_MAILCONFIG_API_USER}" ] || [ -z "${IONOS_MAILCONFIG_API_PASS}" ]; then
@@ -329,7 +327,7 @@ configure_ionos_ai_model_hub() {
 }
 
 config_apps() {
-	log_info "Configure apps ..."
+	log_info "Configuring Nextcloud apps..."
 
 	log_info "Enable calendar app"
 	execute_occ_command app:enable calendar
