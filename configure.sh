@@ -72,6 +72,12 @@ verify_nextcloud_installation() {
 	fi
 }
 
+#===============================================================================
+# Configuration Functions
+#===============================================================================
+
+# Configure Nextcloud Workspace theming
+# Usage: configure_theming
 configure_theming() {
 	log_info "Configuring Nextcloud Workspace theming..."
 
@@ -119,6 +125,8 @@ configure_collabora_app() {
 	execute_occ_command richdocuments:activate-config
 }
 
+# Configure notify_push app
+# Usage: configure_notify_push_app
 configure_notify_push_app() {
 	log_info "Configuring notify_push app..."
 	execute_occ_command app:enable notify_push
@@ -173,6 +181,7 @@ configure_files_antivirus_app() {
 }
 
 # Configure Elasticsearch integration
+# Usage: configure_fulltextsearch_apps
 configure_fulltextsearch_apps() {
 	log_info "Configuring Elasticsearch integration..."
 
@@ -253,12 +262,16 @@ configure_fulltextsearch_apps() {
 	log_info "Fulltext search plugins installation and configuration completed"
 }
 
+# Configure whiteboard app
+# Usage: configure_whiteboard_app
 configure_whiteboard_app() {
 	log_info "Configuring whiteboard app..."
 	execute_occ_command config:app:set whiteboard collabBackendUrl --value="${APP_WHITEBOARD_COLLABBACKEND_URL}:${APP_WHITEBOARD_COLLABBACKEND_PORT:-3002}"
 	execute_occ_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
 }
 
+# Configure admin delegation
+# Usage: configure_admin_delegation
 configure_admin_delegation() {
 	log_info "Configuring admin delegation..."
 
@@ -302,6 +315,7 @@ configure_ionos_mailconfig_api() {
 }
 
 # Configure IONOS AI Model Hub with API credentials
+# Usage: configure_ionos_ai_model_hub
 configure_ionos_ai_model_hub() {
 	log_info "Configuring IONOS AI Model Hub with API credentials..."
 
@@ -326,6 +340,8 @@ configure_ionos_ai_model_hub() {
 	log_info "IONOS AI Model Hub configuration completed successfully"
 }
 
+# Enable and configure all Nextcloud apps
+# Usage: configure_apps
 configure_apps() {
 	log_info "Configuring Nextcloud apps..."
 
