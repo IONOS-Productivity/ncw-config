@@ -287,6 +287,46 @@ OCA\\Password_Policy\\Settings\\Settings
 	done
 }
 
+# Configure IONOS mailconfig api with API credentials
+# Usage: configure_ionos_mailconfig_api
+configure_ionos_mailconfig_api() {
+	log_info "Configuring ionos mailconfig api with API credentials..."
+
+	# Check required environment variables
+	if [ -z "${IONOS_MAILCONFIG_API_URL}" ] || [ -z "${IONOS_MAILCONFIG_API_USER}" ] || [ -z "${IONOS_MAILCONFIG_API_PASS}" ]; then
+		log_warning "Required environment variables not set (IONOS_MAILCONFIG_API_URL, IONOS_MAILCONFIG_API_USER or IONOS_MAILCONFIG_API_PASS), skipping mailconfig API configuration"
+		return 0
+	fi
+
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
+}
+
+# Configure IONOS AI Model Hub with API credentials
+configure_ionos_ai_model_hub() {
+	log_info "Configuring IONOS AI Model Hub with API credentials..."
+
+	# Check required environment variables
+	if [ -z "${IONOSAI_URL}" ] || [ -z "${IONOSAI_TOKEN}" ]; then
+		log_warning "Required AI Model Hub environment variables not set (IONOSAI_URL, IONOSAI_TOKEN), skipping configuration"
+		return 0
+	fi
+
+	log_info "Configuring IONOS AI Model Hub with URL: ${IONOSAI_URL}"
+
+	# Configure AI Model Hub settings for integration_openai app
+	# Using Bearer token authentication (JWT format)
+	execute_occ_command config:app:set --value "${IONOSAI_URL}" --type string integration_openai url
+	execute_occ_command config:app:set --value "${IONOSAI_TOKEN}" --sensitive --type string integration_openai api_key
+
+	# Configure service name with default fallback
+	_service_name="${IONOSAI_SERVICE_NAME:-IONOS AI Model Hub}"
+	log_info "Setting AI service name to: ${_service_name}"
+	execute_occ_command config:app:set --value "${_service_name}" --type string integration_openai service_name
+
+	log_info "IONOS AI Model Hub configuration completed successfully"
+}
 
 config_apps() {
 	log_info "Configure apps ..."
@@ -345,47 +385,6 @@ config_apps() {
 	configure_admin_delegation
 
 	configure_ionos_ai_model_hub
-}
-
-# Configure IONOS mailconfig api with API credentials
-# Usage: configure_ionos_mailconfig_api
-configure_ionos_mailconfig_api() {
-	log_info "Configuring ionos mailconfig api with API credentials..."
-
-	# Check required environment variables
-	if [ -z "${IONOS_MAILCONFIG_API_URL}" ] || [ -z "${IONOS_MAILCONFIG_API_USER}" ] || [ -z "${IONOS_MAILCONFIG_API_PASS}" ]; then
-		log_warning "Required environment variables not set (IONOS_MAILCONFIG_API_URL, IONOS_MAILCONFIG_API_USER or IONOS_MAILCONFIG_API_PASS), skipping mailconfig API configuration"
-		return 0
-	fi
-
-	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
-	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
-	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
-}
-
-# Configure IONOS AI Model Hub with API credentials
-configure_ionos_ai_model_hub() {
-	log_info "Configuring IONOS AI Model Hub with API credentials..."
-
-	# Check required environment variables
-	if [ -z "${IONOSAI_URL}" ] || [ -z "${IONOSAI_TOKEN}" ]; then
-		log_warning "Required AI Model Hub environment variables not set (IONOSAI_URL, IONOSAI_TOKEN), skipping configuration"
-		return 0
-	fi
-
-	log_info "Configuring IONOS AI Model Hub with URL: ${IONOSAI_URL}"
-
-	# Configure AI Model Hub settings for integration_openai app
-	# Using Bearer token authentication (JWT format)
-	execute_occ_command config:app:set --value "${IONOSAI_URL}" --type string integration_openai url
-	execute_occ_command config:app:set --value "${IONOSAI_TOKEN}" --sensitive --type string integration_openai api_key
-
-	# Configure service name with default fallback
-	_service_name="${IONOSAI_SERVICE_NAME:-IONOS AI Model Hub}"
-	log_info "Setting AI service name to: ${_service_name}"
-	execute_occ_command config:app:set --value "${_service_name}" --type string integration_openai service_name
-
-	log_info "IONOS AI Model Hub configuration completed successfully"
 }
 
 #===============================================================================
