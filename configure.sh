@@ -48,6 +48,27 @@ log_info() {
 	echo "[i] ${*}"
 }
 
+
+# Validate required environment variables
+# Usage: validate_env_vars <var1> <var2> ...
+# Returns: 0 if all variables are set, 1 otherwise
+validate_env_vars() {
+	_validation_failed=false
+
+	for _var in "${@}"; do
+		eval "_value=\${${_var}}"
+		if [ -z "${_value}" ]; then
+			log_warning "${_var} environment variable is not set"
+			_validation_failed=true
+		fi
+	done
+
+	if [ "${_validation_failed}" = "true" ]; then
+		return 1
+	fi
+	return 0
+}
+
 # Check if required dependencies are available
 # Usage: check_dependencies
 check_dependencies() {
@@ -140,30 +161,7 @@ configure_files_antivirus_app() {
 	execute_occ_command app:disable files_antivirus
 
 	# Validate required environment variables
-	_validation_failed=false
-
-	if [ -z "${CLAMAV_HOST}" ]; then
-		log_warning "CLAMAV_HOST environment variable is not set"
-		_validation_failed=true
-	fi
-
-	if [ -z "${CLAMAV_PORT}" ]; then
-		log_warning "CLAMAV_PORT environment variable is not set"
-		_validation_failed=true
-	fi
-
-	if [ -z "${CLAMAV_MAX_FILE_SIZE}" ]; then
-		log_warning "CLAMAV_MAX_FILE_SIZE environment variable is not set"
-		_validation_failed=true
-	fi
-
-	if [ -z "${CLAMAV_MAX_STREAM_LENGTH}" ]; then
-		log_warning "CLAMAV_MAX_STREAM_LENGTH environment variable is not set"
-		_validation_failed=true
-	fi
-
-	# Only proceed if all variables are set
-	if [ "${_validation_failed}" = "true" ]; then
+	if ! validate_env_vars CLAMAV_HOST CLAMAV_PORT CLAMAV_MAX_FILE_SIZE CLAMAV_MAX_STREAM_LENGTH; then
 		log_warning "files_antivirus app configuration skipped due to missing environment variables"
 		return 0
 	fi
@@ -186,24 +184,7 @@ configure_fulltextsearch_apps() {
 	log_info "Configuring Elasticsearch integration..."
 
 	# Validate required environment variables
-	_validation_failed=false
-
-	if [ -z "${ELASTIC_NEXTCLOUD_USERNAME}" ]; then
-		log_warning "ELASTIC_NEXTCLOUD_USERNAME environment variable is not set"
-		_validation_failed=true
-	fi
-
-	if [ -z "${ELASTIC_NEXTCLOUD_PASSWORD}" ]; then
-		log_warning "ELASTIC_NEXTCLOUD_PASSWORD environment variable is not set"
-		_validation_failed=true
-	fi
-
-	if [ -z "${ELASTIC_SEARCH_INDEX_NAME}" ]; then
-		log_warning "ELASTIC_SEARCH_INDEX_NAME environment variable is not set"
-		_validation_failed=true
-	fi
-
-	if [ "${_validation_failed}" = "true" ]; then
+	if ! validate_env_vars ELASTIC_NEXTCLOUD_USERNAME ELASTIC_NEXTCLOUD_PASSWORD ELASTIC_SEARCH_INDEX_NAME; then
 		log_warning "fulltextsearch apps configuration skipped due to missing environment variables"
 		return 0
 	fi
@@ -304,8 +285,8 @@ configure_ionos_mailconfig_api() {
 	log_info "Configuring IONOS mailconfig API with credentials..."
 
 	# Check required environment variables
-	if [ -z "${IONOS_MAILCONFIG_API_URL}" ] || [ -z "${IONOS_MAILCONFIG_API_USER}" ] || [ -z "${IONOS_MAILCONFIG_API_PASS}" ]; then
-		log_warning "Required environment variables not set (IONOS_MAILCONFIG_API_URL, IONOS_MAILCONFIG_API_USER or IONOS_MAILCONFIG_API_PASS), skipping mailconfig API configuration"
+	if ! validate_env_vars IONOS_MAILCONFIG_API_URL IONOS_MAILCONFIG_API_USER IONOS_MAILCONFIG_API_PASS; then
+		log_warning "Skipping mailconfig API configuration due to missing environment variables"
 		return 0
 	fi
 
@@ -320,8 +301,8 @@ configure_ionos_ai_model_hub() {
 	log_info "Configuring IONOS AI Model Hub with API credentials..."
 
 	# Check required environment variables
-	if [ -z "${IONOSAI_URL}" ] || [ -z "${IONOSAI_TOKEN}" ]; then
-		log_warning "Required AI Model Hub environment variables not set (IONOSAI_URL, IONOSAI_TOKEN), skipping configuration"
+	if ! validate_env_vars IONOSAI_URL IONOSAI_TOKEN; then
+		log_warning "Skipping AI Model Hub configuration due to missing environment variables"
 		return 0
 	fi
 
