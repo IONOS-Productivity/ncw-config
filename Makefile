@@ -64,6 +64,7 @@ NOTHING_TO_BUILD_APPS = \
 # Apps to be removed from final package
 REMOVE_UNWANTED_APPS = \
 	apps/admin_audit \
+	apps/encryption \
 	apps/files_reminders \
 	apps/testing \
 	apps/updatenotification \
