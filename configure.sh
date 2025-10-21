@@ -16,6 +16,8 @@ readonly LOGO_ABSOLUTE_DIR
 # Admin delegation map: defines which app settings classes should be delegated
 # Format: app_name:full_class_path (one per line)
 # Each entry maps an app to its admin settings class that will be delegated
+# Note: Entries are sorted by app name before processing to ensure apps with
+#       multiple delegations are only enabled/disabled once
 readonly ADMIN_DELEGATION_MAP="
 systemtags:OCA\\SystemTags\\Settings\\Admin
 password_policy:OCA\\Password_Policy\\Settings\\Settings
@@ -324,6 +326,10 @@ configure_admin_delegation() {
 	# Use the delegation map defined at script start
 	_app_delegation_map="${ADMIN_DELEGATION_MAP}"
 
+	# Sort the delegation map by app name to ensure apps with multiple delegations
+	# are processed together (enabling/disabling each app only once)
+	_app_delegation_map=$(echo "${_app_delegation_map}" | grep -v '^[[:space:]]*$' | sort)
+
 	# Parse delegation map and group by app
 	_current_app=""
 	_delegations_for_app=""
@@ -383,7 +389,7 @@ _process_app_delegations() {
 	fi
 
 	# Add delegations for this app
-	echo "${_delegation_classes}" | while read -r _class; do
+	for _class in ${_delegation_classes}; do
 		if [ -n "${_class}" ]; then
 			execute_occ_command admin-delegation:add "${_class}" admin
 		fi
