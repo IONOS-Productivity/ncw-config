@@ -61,6 +61,10 @@ COMPOSER_ONLY_APPS = \
 NOTHING_TO_BUILD_APPS = \
 	files_antivirus
 
+# Apps to be removed from final package
+REMOVE_UNWANTED_APPS = \
+	apps/testing \
+
 # Generate build targets dynamically
 FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
 COMPOSER_ONLY_TARGETS = $(patsubst %,build_%_app,$(COMPOSER_ONLY_APPS))
@@ -239,7 +243,8 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "composer.lock" \
 	-x "composer.phar" \
 	-x "package.json" \
-	-x "package-lock.json"
+	-x "package-lock.json" \
+	$(foreach app,$(REMOVE_UNWANTED_APPS),-x "$(app)/*")
 	@echo "[i] Package $(TARGET_PACKAGE_NAME) created successfully"
 
 # Parallel build targets
