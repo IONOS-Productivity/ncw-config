@@ -64,6 +64,7 @@ NOTHING_TO_BUILD_APPS = \
 # Apps to be removed from final package
 REMOVE_UNWANTED_APPS = \
 	apps/testing \
+	apps/updatenotification \
 
 # Generate build targets dynamically
 FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
