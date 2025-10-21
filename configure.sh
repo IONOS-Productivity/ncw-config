@@ -9,6 +9,12 @@ readonly NEXTCLOUD_DIR
 LOGO_ABSOLUTE_DIR="$(cd "${NEXTCLOUD_DIR}/IONOS" && pwd)"
 readonly LOGO_ABSOLUTE_DIR
 
+# Global flag for verbose command logging
+VERBOSE_OCC_LOGGING=false
+
+# Log file for OCC commands (only used when VERBOSE_OCC_LOGGING=true)
+OCC_LOG_FILE=""
+
 #===============================================================================
 # Configuration Constants
 #===============================================================================
@@ -69,6 +75,20 @@ execute_occ_command() {
 	# Check if this is a config:system:set command and warn about partial config
 	if [ "${1}" = "config:system:set" ]; then
 		log_warning "config:system:set should be avoided. Use PHP <foo>.config.php files in configs/ directory instead. Command: ${*}"
+	fi
+
+	if [ "${VERBOSE_OCC_LOGGING}" = "true" ]; then
+		# Check if command contains --sensitive flag to obscure sensitive values
+		_log_command="${*}"
+		if echo "${*}" | grep -q -- "--sensitive"; then
+			# Obscure the value after --sensitive flag
+			_log_command=$(echo "${*}" | sed -E 's/(--value[= ])[^ ]+( .*--sensitive)/\1***REDACTED***\2/g; s/(--sensitive.*--value[= ])[^ ]+/\1***REDACTED***/g')
+		fi
+
+		# Log to stderr to avoid interfering with command output capture
+		echo "[i] Executing OCC command: ${_log_command}" >&2
+		# Write command to log file (also obscured)
+		echo "occ ${_log_command}" >> "${OCC_LOG_FILE}" 2>&1
 	fi
 
 	if ! php occ "${@}"; then
@@ -486,9 +506,50 @@ configure_apps() {
 # Main Execution Function
 #===============================================================================
 
+# Parse command line arguments
+# Usage: parse_arguments [args...]
+parse_arguments() {
+	while [ $# -gt 0 ]; do
+		case "${1}" in
+			-v|--verbose)
+				VERBOSE_OCC_LOGGING=true
+				# Set log file path with timestamp
+				OCC_LOG_FILE="${SCRIPT_DIR}/occ-commands-$(date +%Y%m%d-%H%M%S).log"
+				log_info "Verbose OCC command logging enabled"
+				log_info "OCC commands will be logged to: ${OCC_LOG_FILE}"
+				# Initialize log file with header
+				echo "==============================================================================" > "${OCC_LOG_FILE}"
+				echo "OCC Command Log - $(date '+%Y-%m-%d %H:%M:%S')" >> "${OCC_LOG_FILE}"
+				echo "==============================================================================" >> "${OCC_LOG_FILE}"
+				echo "" >> "${OCC_LOG_FILE}"
+				shift
+				;;
+			-h|--help)
+				echo "Usage: ${0} [OPTIONS]"
+				echo ""
+				echo "Configure Nextcloud Workspace installation"
+				echo ""
+				echo "Options:"
+				echo "  -v, --verbose    Enable verbose OCC command logging"
+				echo "                   Logs will be saved to: occ-commands-<timestamp>.log"
+				echo "  -h, --help       Display this help message"
+				echo ""
+				exit 0
+				;;
+			*)
+				log_warning "Unknown option: ${1}"
+				shift
+				;;
+		esac
+	done
+}
+
 # Main function to orchestrate Nextcloud Workspace configuration
 # Usage: main [args...]
 main() {
+	# Parse command line arguments first
+	parse_arguments "${@}"
+
 	log_info "Starting Nextcloud Workspace configuration process..."
 
 	# Perform initial checks
