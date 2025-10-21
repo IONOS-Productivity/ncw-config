@@ -378,7 +378,14 @@ configure_admin_delegation() {
 		fi
 
 		_current_app="${_app}"
-		_delegations_for_app="${_delegations_for_app} ${_class}"
+		# Accumulate classes using newline as separator to preserve backslashes
+		if [ -z "${_delegations_for_app}" ]; then
+			_delegations_for_app="${_class}"
+		else
+			# keep next line as multiline in order to preserve the newlines
+			_delegations_for_app="${_delegations_for_app}
+${_class}"
+		fi
 	done
 
 	# Process last app's delegations
@@ -409,8 +416,11 @@ _process_app_delegations() {
 	fi
 
 	# Add delegations for this app
-	for _class in ${_delegation_classes}; do
+	# Use newline as delimiter to properly handle class names with backslashes
+	echo "${_delegation_classes}" | while IFS= read -r _class; do
+		# Skip empty lines
 		if [ -n "${_class}" ]; then
+			log_info "Adding delegation for class: ${_class}"
 			execute_occ_command admin-delegation:add "${_class}" admin
 		fi
 	done
