@@ -326,13 +326,14 @@ configure_whiteboard_app() {
 configure_spreed_app() {
 	log_info "Configuring spreed (talk) app..."
 
-	execute_occ_command app:disable spreed
-
 	# Validate required environment variables
 	if ! validate_env_vars HPB_URL HPB_SECRET TURN_SERVER_URL TURN_SERVER_SECRET; then
 		log_warning "spreed app configuration skipped due to missing environment variables"
+		execute_occ_command app:disable spreed
 		return 0
 	fi
+
+	enable_app spreed "Spreed"
 
 	# Configure High Performance Backend (HPB) signaling
 	log_info "Configuring talk signaling server: ${HPB_URL}"
@@ -341,8 +342,6 @@ configure_spreed_app() {
 	# Configure TURN server
 	log_info "Configuring TURN server: ${TURN_SERVER_URL}"
 	execute_occ_command talk:turn:add turn "${TURN_SERVER_URL}" udp,tcp --secret "${TURN_SERVER_SECRET}"
-
-	enable_app spreed "Spreed"
 
 	log_info "spreed app configured successfully with HPB: ${HPB_URL}, TURN: ${TURN_SERVER_URL}"
 }
