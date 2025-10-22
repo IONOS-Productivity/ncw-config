@@ -510,6 +510,45 @@ configure_ionos_ai_model_hub() {
 	_image_model="${IONOSAI_IMAGE_MODEL:-black-forest-labs/FLUX.1-schnell}"
 	execute_occ_command config:app:set --value "${_image_model}" --type string integration_openai default_image_model_id
 
+	# Set AI assistant settings
+	log_info "Configuring AI Assistant settings... "
+	execute_occ_command config:app:set --value false settings ai.taskprocessing_guests
+
+	_deactivated_tasks="
+		core:generateemoji
+		core:audio2text
+		assistant:text2sticker
+		integration_openai:text2speech
+		integration_openai:analyze-images
+		"
+	_activated_tasks="
+		core:contextagent:interaction
+		core:contextwrite
+		core:text2image
+		core:text2text
+		core:text2text:changetone
+		core:text2text:chat
+		core:text2text:chatwithtools
+		core:text2text:headline
+		core:text2text:proofread
+		core:text2text:reformulation
+		core:text2text:summary
+		core:text2text:topics
+		core:text2text:translate
+		core:text2text:formalization
+		"
+
+	for _task in ${_deactivated_tasks}; do
+		# Skip empty lines
+		[ -n "${_task}" ] && execute_occ_command taskprocessing:task-type:set-enabled -q "${_task}" 0
+		log_info "Disabled ${_task}"
+	done
+
+	for _task in ${_activated_tasks}; do
+		[ -n "${_task}" ] && execute_occ_command taskprocessing:task-type:set-enabled -q "${_task}" 1
+		log_info "Enabled ${_task}"
+	done
+
 	log_info "IONOS AI Model Hub configuration completed successfully"
 }
 
