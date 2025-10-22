@@ -248,6 +248,49 @@ zip_dependencies: version.json ## Zip relevant files
 	-x "composer.phar" \
 	-x "package.json" \
 	-x "package-lock.json" \
+	-x "**/*.map" \
+	-x "**/*.md" \
+	-x "**/README*" \
+	-x "**/CHANGELOG*" \
+	-x "**/LICENSE*" \
+	-x "**/COPYING*" \
+	-x "**/tests/**" \
+	-x "**/test/**" \
+	-x "**/__tests__/**" \
+	-x "**/spec/**" \
+	-x "**/*.test.js" \
+	-x "**/*.spec.js" \
+	-x "**/*.test.ts" \
+	-x "**/*.spec.ts" \
+	-x "**/.eslintrc*" \
+	-x "**/.prettierrc*" \
+	-x "**/.babelrc*" \
+	-x "**/tsconfig*.json" \
+	-x "**/.npmignore" \
+	-x "**/.gitattributes" \
+	-x "**/phpunit.xml*" \
+	-x "**/.phpunit.result.cache" \
+	-x "**/phpstan.neon*" \
+	-x "**/.php_cs*" \
+	-x "**/.php-cs-fixer*" \
+	-x "**/docs/**" \
+	-x "**/doc/**" \
+	-x "**/documentation/**" \
+	-x "**/examples/**" \
+	-x "**/.gitlab-ci.yml" \
+	-x "**/.travis.yml" \
+	-x "**/Makefile" \
+	-x "**/Gruntfile.js" \
+	-x "**/webpack*.js" \
+	-x "**/rollup*.js" \
+	-x "**/vite*.js" \
+	-x "**/.stylelintrc*" \
+	-x "**/jest.config*" \
+	-x "**/.jshintrc*" \
+	-x "**/vendor/*/test/**" \
+	-x "**/vendor/*/tests/**" \
+	-x "**/vendor/*/Test/**" \
+	-x "**/vendor/*/Tests/**" \
 	$(foreach app,$(REMOVE_UNWANTED_APPS),-x "$(app)/*")
 	@echo "[i] Package $(TARGET_PACKAGE_NAME) created successfully"
 
