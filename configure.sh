@@ -221,6 +221,19 @@ configure_collabora_app() {
 configure_notify_push_app() {
 	log_info "Configuring notify_push app..."
 	execute_occ_command app:enable notify_push
+
+	log_info "Retrieving base URL for notify_push endpoint..."
+	_base_url=$(execute_occ_command config:system:get overwrite.cli.url)
+
+	if [ -z "${_base_url}" ]; then
+		log_warning "Base URL (overwrite.cli.url) is not set. notify_push base_endpoint cannot be configured."
+		return 0
+	fi
+
+	_notify_push_endpoint="${_base_url}/push"
+	log_info "Setting notify_push base_endpoint: ${_notify_push_endpoint}"
+
+	execute_occ_command config:app:set --value "${_notify_push_endpoint}" --type string -- notify_push base_endpoint
 }
 
 # Configure files_antivirus app
