@@ -45,6 +45,7 @@ FULL_BUILD_APPS = \
 	tables \
 	tasks \
 	text \
+	user_oidc \
 	viewer \
 	whiteboard \
 	password_policy
