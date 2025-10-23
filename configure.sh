@@ -586,6 +586,7 @@ configure_apps() {
 	enable_app circles "Circles"
 	enable_app activity "Activity"
 	enable_app contacts "Contacts"
+	enable_app end_to_end_encryption "End-to-End Encryption"
 	enable_app mail "Mail"
 	enable_app notifications "Notifications"
 	enable_app tasks "Tasks"
