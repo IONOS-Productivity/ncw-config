@@ -33,6 +33,7 @@ FULL_BUILD_APPS = \
 	collectives \
 	contacts \
 	deck \
+	end_to_end_encryption \
 	forms \
 	groupfolders \
 	integration_openai \
