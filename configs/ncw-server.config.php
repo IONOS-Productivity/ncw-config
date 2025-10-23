@@ -7,5 +7,7 @@
 
 $CONFIG = [
 	// Disable custom lookup server to publish user data
-	'lookup_server' => ''
+	'lookup_server' => '',
+	'ncw.ext_ref' => (string)getenv('EXT_REF'),
+	'ncw.customerDomain' => (string)getenv('CUSTOMER_DOMAIN'),
 ];
