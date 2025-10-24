@@ -14,3 +14,9 @@ path = "IONOS_logo.svg"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 STRATO GmbH"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = ["removed-apps.txt"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 STRATO GmbH"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
