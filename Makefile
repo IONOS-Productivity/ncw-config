@@ -62,13 +62,8 @@ COMPOSER_ONLY_APPS = \
 NOTHING_TO_BUILD_APPS = \
 	files_antivirus
 
-# Apps to be removed from final package
-REMOVE_UNWANTED_APPS = \
-	apps/admin_audit \
-	apps/encryption \
-	apps/files_reminders \
-	apps/testing \
-	apps/updatenotification \
+# Apps to be removed from final package (read from removed-apps.txt)
+REMOVE_UNWANTED_APPS = $(shell [ -f IONOS/removed-apps.txt ] && cat IONOS/removed-apps.txt || echo "")
 
 # Generate build targets dynamically
 FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
