@@ -1,0 +1,6 @@
+# List of apps to be disabled
+# One app name per line
+# Lines starting with # are comments and will be ignored
+# Empty lines are also ignored
+
+workflowengine
