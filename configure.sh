@@ -15,6 +15,20 @@ VERBOSE_OCC_LOGGING=false
 # Log file for OCC commands (only used when VERBOSE_OCC_LOGGING=true)
 OCC_LOG_FILE=""
 
+# Read app lists from .list files
+read_app_list() {
+	# Read app list from file, ignoring comments and empty lines
+	# Usage: read_app_list <file_path>
+	_list_file="${1}"
+	if [ ! -f "${_list_file}" ]; then
+		echo ""
+		return
+	fi
+	grep -v '^[[:space:]]*#' "${_list_file}" | grep -v '^[[:space:]]*$' | tr '\n' ' '
+}
+
+DISABLED_APPS=$( read_app_list "${BDIR}/disabled-apps.list" )
+
 #===============================================================================
 # Configuration Constants
 #===============================================================================
@@ -576,6 +590,51 @@ configure_ionos_ai_model_hub() {
 	log_info "IONOS AI Model Hub configuration completed successfully"
 }
 
+#===============================================================================
+# App Management Functions
+#===============================================================================
+
+# Disable a single Nextcloud app with error handling
+# Usage: disable_single_app <app_name>
+disable_single_app() {
+	# Disable app and check if it was disabled
+	# Fail if disabling the app failed
+	#
+	_app_name="${1}"
+	if [ -z "${_app_name}" ]; then
+		log_fatal "App name is required for disable_single_app function"
+	fi
+
+	log_info "Disabling app '${_app_name}'..."
+
+	if ! execute_occ_command app:disable "${_app_name}"
+	then
+		log_fatal "Disable app \"${_app_name}\" failed."
+	fi
+}
+
+# Disable multiple apps based on the DISABLED_APPS list
+# Usage: disable_configured_apps
+disable_configured_apps() {
+	log_info "Processing app disabling..."
+
+	_enabled_apps=$(execute_occ_command app:list --enabled --output json | jq -j '.enabled | keys | join("\n")')
+	_disabled_apps_count=0
+
+	for _app_name in ${DISABLED_APPS}; do
+		printf "[?] Checking app: %s" "${_app_name}"
+		if echo "${_enabled_apps}" | grep -q -w "${_app_name}"; then
+			echo " - currently enabled - disabling"
+			disable_single_app "${_app_name}"
+			_disabled_apps_count=$((_disabled_apps_count + 1))
+		else
+			echo " - not enabled - skip"
+		fi
+	done
+
+	log_info "Disabled ${_disabled_apps_count} apps."
+}
+
 # Enable and configure all Nextcloud apps
 # Usage: configure_apps
 configure_apps() {
@@ -669,6 +728,7 @@ main() {
 
 	# Execute configuration steps
 	configure_theming
+	disable_configured_apps
 	configure_apps
 	configure_ionos_mailconfig_api
 
