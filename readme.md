@@ -53,3 +53,62 @@ example_app
 - `files_reminders` - File reminder notifications
 - `testing` - Testing app for development
 - `updatenotification` - Update notification system
+
+### disabled-apps.list
+
+This file contains a list of Nextcloud apps that should be made **disableable** by removing them from the `shipped.json` configuration.
+
+**Purpose:**
+- Allows administrators to disable specific Nextcloud apps that would normally be forced to stay enabled
+- Modifies `core/shipped.json` to remove apps from both `alwaysEnabled` and `defaultEnabled` arrays
+
+**Key Difference from removed-apps.txt:**
+| File | Action | Result |
+|------|--------|--------|
+| `removed-apps.txt` | **Removes** apps entirely from distribution | Apps are not installed at all |
+| `disabled-apps.list` | **Allows disabling** of apps | Apps are installed but can be disabled by admins |
+
+**Usage:**
+
+There are two mechanisms for processing this file:
+
+1. **Build-time (Docker image build):**
+  - The `apps-disable.sh` script processes `disabled-apps.list` during Docker image build to modify `core/shipped.json` and make listed apps disableable.
+  - Run:
+    ```bash
+    ./apps-disable.sh
+    ```
+  - This script must run during Docker image build, **NOT** in Kubernetes pods at runtime.
+
+2. **Runtime (Kubernetes after upgrade):**
+  - The `configure.sh` script calls `disable_configured_apps()` at runtime (e.g., in k8s pods after upgrade) to ensure listed apps are disableable in a running environment.
+  - This is useful for upgrades or dynamic configuration changes.
+
+**Note:**  
+- Use `apps-disable.sh` for build-time modifications to shipped.json.  
+- Use `configure.sh` for runtime enforcement after upgrades in Kubernetes.
+
+**alwaysEnabled vs defaultEnabled:**
+  - `alwaysEnabled` - Critical: Prevents admins from disabling the app (checked during operations)
+  - `defaultEnabled` - Only affects new installations, not updates
+**Validation:** The script validates JSON before and after modifications to prevent corruption
+
+**Example:**
+
+To make the `dashboard` app disableable:
+```
+# UI customization
+dashboard
+weather_status
+
+# Optional features
+recommendations
+```
+
+Then the app can be disabled via:
+```bash
+occ app:disable dashboard
+```
+
+**Currently Disabled Apps:**
+- `workflowengine` - Workflow automation engine
