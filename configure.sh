@@ -15,8 +15,21 @@ VERBOSE_OCC_LOGGING=false
 # Log file for OCC commands (only used when VERBOSE_OCC_LOGGING=true)
 OCC_LOG_FILE=""
 
-# Load disabled apps configuration
-. "${SCRIPT_DIR}/disabled-apps.inc.sh"
+# Load disabled apps from disabled-apps.txt
+load_disabled_apps() {
+	disabled_apps_file="${SCRIPT_DIR}/disabled-apps.txt"
+
+	if [ ! -f "${disabled_apps_file}" ]; then
+		echo "Warning: disabled-apps.txt not found, no apps will be disabled" >&2
+		DISABLED_APPS=""
+		return
+	fi
+
+	# Read file, filter out comments and empty lines, join with spaces
+	DISABLED_APPS=$(grep -v '^#' "${disabled_apps_file}" | grep -v '^[[:space:]]*$' | tr '\n' ' ')
+}
+
+load_disabled_apps
 
 #===============================================================================
 # Configuration Constants
