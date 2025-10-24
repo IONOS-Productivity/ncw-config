@@ -1,5 +1,5 @@
-apps/admin_audit
-apps/encryption
-apps/files_reminders
-apps/testing
-apps/updatenotification
+admin_audit
+encryption
+files_reminders
+testing
+updatenotification
