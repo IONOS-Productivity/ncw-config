@@ -3,3 +3,6 @@ encryption
 files_reminders
 testing
 updatenotification
+files_fulltextsearch
+fulltextsearch
+fulltextsearch_elasticsearch
