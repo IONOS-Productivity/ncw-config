@@ -1,0 +1,6 @@
+# List of ./apps to be always enabled.
+# Managed as include file so that it can be used in various scripts.
+
+dav
+files
+theming
