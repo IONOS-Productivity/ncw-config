@@ -18,6 +18,12 @@ indent_size = 2
 indent_size = 2
 indent_style = space
 
+[*.list]
+# List files: one item per line, shell-style comments with #
+indent_size = 2
+indent_style = space
+insert_final_newline = true
+
 [{*.yaml,*.yml}]
 indent_size = 2
 indent_style = space
