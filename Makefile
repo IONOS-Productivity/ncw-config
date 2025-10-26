@@ -78,7 +78,7 @@ NOTHING_TO_BUILD_TARGETS = $(patsubst %,build_%_app,$(NOTHING_TO_BUILD_APPS))
 # Applications - dynamically generated
 .PHONY: build_all_external_apps build_notify_push_app build_notify_push_binary build_fulltextsearch_apps build_core_app_theming $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(NOTHING_TO_BUILD_TARGETS)
 # Configuration and packaging
-.PHONY: add_config_partials version.json zip_dependencies
+.PHONY: add_config_partials patch_shipped_json version.json zip_dependencies
 # Pipeline targets for GitLab workflow
 .PHONY: build_after_external_apps package_after_build
 # Meta targets
@@ -184,6 +184,10 @@ add_config_partials: ## Copy custom config files to Nextcloud config
 	cp IONOS/configs/*.config.php config/
 	@echo "[✓] Config files copied successfully"
 
+patch_shipped_json: ## Patch shipped.json to make core apps disableable
+	@echo "[i] Patching shipped.json..."
+	IONOS/apps-disable.sh
+
 version.json: ## Generate version file
 	@echo "[i] Generating version.json..."
 	buildDate=$$(date +%s) && \
@@ -193,7 +197,7 @@ version.json: ## Generate version file
 	echo "[i] version.json created" && \
 	jq . version.json
 
-zip_dependencies: version.json ## Zip relevant files
+zip_dependencies: patch_shipped_json version.json ## Zip relevant files
 	@echo "[i] zip relevant files to $(TARGET_PACKAGE_NAME)" && \
 	zip -r "$(TARGET_PACKAGE_NAME)" \
 		IONOS/ \
