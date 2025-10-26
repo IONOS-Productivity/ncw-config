@@ -54,9 +54,6 @@ FULL_BUILD_APPS = \
 # App directories that need only composer
 COMPOSER_ONLY_APPS = \
 	circles \
-	files_fulltextsearch \
-	fulltextsearch \
-	fulltextsearch_elasticsearch \
 	ncw_mailtemplate
 
 # App directories that need nothing to build (no changes made during build)
@@ -76,7 +73,7 @@ NOTHING_TO_BUILD_TARGETS = $(patsubst %,build_%_app,$(NOTHING_TO_BUILD_APPS))
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications - dynamically generated
-.PHONY: build_all_external_apps build_notify_push_app build_notify_push_binary build_fulltextsearch_apps build_core_app_theming $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(NOTHING_TO_BUILD_TARGETS)
+.PHONY: build_all_external_apps build_notify_push_app build_notify_push_binary build_core_app_theming $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(NOTHING_TO_BUILD_TARGETS)
 # Configuration and packaging
 .PHONY: add_config_partials patch_shipped_json version.json zip_dependencies
 # Pipeline targets for GitLab workflow
@@ -175,9 +172,6 @@ $(NOTIFY_PUSH_DIR)/vendor/autoload.php: $(NOTIFY_PUSH_DIR)/composer.json
 
 build_notify_push_binary: $(NOTIFY_PUSH_BINARY) ## Download notify_push binary
 	@echo "[i] notify_push binary ready"
-
-build_fulltextsearch_apps: build_fulltextsearch_app build_files_fulltextsearch_app build_fulltextsearch_elasticsearch_app ## Build all fulltextsearch apps
-	@echo "[i] All fulltextsearch apps built successfully"
 
 add_config_partials: ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
