@@ -340,7 +340,7 @@ configure_spreed_app() {
 	log_info "Configuring spreed (talk) app..."
 
 	# Validate required environment variables
-	if ! validate_env_vars HPB_URL HPB_SECRET TURN_SERVER_URL_1 TURN_SERVER_SECRET; then
+	if ! validate_env_vars HPB_URL HPB_SECRET TURN_SERVER_TCP_URL TURN_SERVER_SECRET; then
 		log_warning "spreed app configuration skipped due to missing environment variables"
 		execute_occ_command app:disable spreed
 		return 0
@@ -354,17 +354,17 @@ configure_spreed_app() {
 	execute_occ_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
 
 	# Configure TURN servers
-	log_info "Configuring TURN server: ${TURN_SERVER_URL_1}"
-	execute_occ_command talk:turn:add turn "${TURN_SERVER_URL_1}" udp,tcp --secret "${TURN_SERVER_SECRET}"
+	log_info "Configuring TURN server: ${TURN_SERVER_TCP_URL}"
+	execute_occ_command talk:turn:add turn "${TURN_SERVER_TCP_URL}" tcp --secret "${TURN_SERVER_SECRET}"
 
-	if [ "${TURN_SERVER_URL_2}" ]; then
-		log_info "Configuring TURN server: ${TURN_SERVER_URL_2}"
-		execute_occ_command talk:turn:add turn "${TURN_SERVER_URL_2}" udp,tcp --secret "${TURN_SERVER_SECRET}"
+	if [ "${TURN_SERVER_UDP_URL}" ]; then
+		log_info "Configuring TURN server: ${TURN_SERVER_UDP_URL}"
+		execute_occ_command talk:turn:add turn "${TURN_SERVER_UDP_URL}" udp --secret "${TURN_SERVER_SECRET}"
 	else
-		log_info "Skipping TURN server configuration (TURN_SERVER_URL_2 not set)"
+		log_info "Skipping TURN server configuration (TURN_SERVER_UDP_URL not set)"
 	fi
 
-	log_info "spreed app configured successfully with HPB: ${HPB_URL}, TURN: ${TURN_SERVER_URL}"
+	log_info "spreed app configured successfully with HPB: ${HPB_URL}, TURN: ${TURN_SERVER_TCP_URL}"
 }
 
 # Configure viewer app
