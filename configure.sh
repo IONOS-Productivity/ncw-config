@@ -39,12 +39,12 @@ DISABLED_APPS=$( read_app_list "${BDIR}/disabled-apps.list" )
 # Note: Entries are sorted by app name before processing to ensure apps with
 #       multiple delegations are only enabled/disabled once
 readonly ADMIN_DELEGATION_MAP="
-systemtags:OCA\\SystemTags\\Settings\\Admin
-password_policy:OCA\\Password_Policy\\Settings\\Settings
-user_ldap:OCA\\User_LDAP\\Settings\\Admin
-settings:OCA\\Settings\\Settings\\Admin\\Security
-oauth2:OCA\\OAuth2\\Settings\\Admin
 groupfolders:OCA\\GroupFolders\\Settings\\Admin
+oauth2:OCA\\OAuth2\\Settings\\Admin
+password_policy:OCA\\Password_Policy\\Settings\\Settings
+settings:OCA\\Settings\\Settings\\Admin\\Security
+systemtags:OCA\\SystemTags\\Settings\\Admin
+user_ldap:OCA\\User_LDAP\\Settings\\Admin
 "
 
 #===============================================================================
