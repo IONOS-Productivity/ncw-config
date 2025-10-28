@@ -7,3 +7,4 @@ workflowengine
 files_fulltextsearch
 fulltextsearch
 fulltextsearch_elasticsearch
+files_antivirus

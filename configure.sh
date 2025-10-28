@@ -590,7 +590,10 @@ configure_apps() {
 	enable_app ncw_apps_menu "NCW Apps Menu"
 
 	# Configure specialized apps
-	configure_files_antivirus_app
+
+	# currently disabled; enable again after removal from removed-apps.txt
+	# configure_files_antivirus_app
+
 	configure_viewer_app
 	configure_collabora_app
 	configure_notify_push_app
