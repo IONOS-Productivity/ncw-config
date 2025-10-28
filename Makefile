@@ -46,6 +46,7 @@ FULL_BUILD_APPS = \
 	tables \
 	tasks \
 	text \
+	twofactor_totp \
 	user_oidc \
 	viewer \
 	whiteboard \
