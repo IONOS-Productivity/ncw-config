@@ -58,6 +58,8 @@ COMPOSER_ONLY_APPS = \
 
 # App directories that need nothing to build (no changes made during build)
 NOTHING_TO_BUILD_APPS = \
+#removed antivirus app
+#	files_antivirus
 
 # Apps to be removed from final package (read from removed-apps.txt)
 REMOVE_UNWANTED_APPS = $(shell [ -f IONOS/removed-apps.txt ] && sed '/^#/d;/^$$/d;s/^/apps\//' IONOS/removed-apps.txt || echo "")
