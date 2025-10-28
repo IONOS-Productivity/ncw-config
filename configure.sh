@@ -44,6 +44,7 @@ password_policy:OCA\\Password_Policy\\Settings\\Settings
 user_ldap:OCA\\User_LDAP\\Settings\\Admin
 settings:OCA\\Settings\\Settings\\Admin\\Security
 oauth2:OCA\\OAuth2\\Settings\\Admin
+groupfolders:OCA\\GroupFolders\\Settings\\Admin
 "
 
 #===============================================================================
