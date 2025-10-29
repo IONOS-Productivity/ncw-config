@@ -5,14 +5,17 @@ set -e
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ################################################################################
-# Nextcloud Apps Disable Script
+# Nextcloud Apps Configuration Script
 ################################################################################
 #
 # DESCRIPTION:
-#   This script removes specified Nextcloud apps from the shipped.json file,
-#   allowing them to be disabled. It modifies both the 'defaultEnabled' and
-#   'alwaysEnabled' arrays in core/shipped.json to prevent certain apps from
-#   being forcefully enabled.
+#   This script manages Nextcloud app configurations by:
+#   1. Removing specified apps from the shipped.json file (disabling them)
+#   2. Adding specified apps to the alwaysEnabled array (forcing them enabled)
+#
+#   It modifies the 'defaultEnabled' and 'alwaysEnabled' arrays in core/shipped.json
+#   to control which apps are shipped with the installation and which cannot be
+#   disabled by administrators.
 #
 # LOCATION:
 #   This script is located in /IONOS as a submodule within the Nextcloud
@@ -27,18 +30,23 @@ set -e
 # USAGE:
 #   ./apps-disable.sh
 #
-#   The script reads app names from disabled-apps.list (one per line) and
-#   removes them from ../core/shipped.json.
+#   The script reads app names from:
+#   - disabled-apps.list: Apps to remove from shipped.json (one per line)
+#   - always-enabled-apps.list: Apps to add to alwaysEnabled array (one per line)
 #
 # PREREQUISITES:
 #   - jq (JSON processor) must be installed
 #   - disabled-apps.list must exist in the same directory
+#   - always-enabled-apps.list is optional but will be processed if present
 #   - ../core/shipped.json must exist and be valid JSON
 #
 # INPUT FILES:
 #   - disabled-apps.list: List of app names to disable (one per line)
 #     * Supports comments (lines starting with #)
 #     * Ignores empty lines and whitespace
+#   - always-enabled-apps.list: List of app names to force enable (one per line)
+#     * Same format as disabled-apps.list
+#     * Apps are added to alwaysEnabled array to prevent disabling
 #
 # OUTPUT:
 #   - Modifies ../core/shipped.json in place
@@ -56,11 +64,17 @@ set -e
 #   # Optional apps
 #   recommendations
 #
+# EXAMPLE always-enabled-apps.list:
+#   # Security apps that must remain enabled
+#   twofactor_totp
+#   encryption
+#
 # NOTES:
 #   - The 'alwaysEnabled' attribute is the critical one - it determines which
 #     apps cannot be disabled by administrators
 #   - The 'defaultEnabled' attribute only affects new installations, not updates
 #   - All changes are validated before and after processing
+#   - Apps in always-enabled-apps.list are only added if not already present
 #
 # AUTHOR: IONOS Nextcloud Customization Team
 # LICENSE: See LICENSES/ directory
@@ -71,6 +85,7 @@ set -e
 BDIR="$(dirname "${0}")"
 SHIPPED_JSON="${BDIR}/../core/shipped.json"
 DISABLED_APPS_FILE="${BDIR}/disabled-apps.list"
+ALWAYS_ENABLED_APPS_FILE="${BDIR}/always-enabled-apps.list"
 
 ################################################################################
 # Logging Functions
@@ -141,6 +156,34 @@ unship_app() {
 	log_info "Unshipped app '${app}'"
 }
 
+# Add an app to the alwaysEnabled array in shipped.json
+# Adds the specified app to the alwaysEnabled array if it's not already present
+# in the shipped.json file using jq for safe JSON manipulation
+# Usage: ship_app <app_name>
+# Arguments:
+#   $1 - Name of the app to add to the alwaysEnabled array
+# Side Effects:
+#   - Creates a temporary file (shipped.json.tmp)
+#   - Modifies shipped.json in place
+#   - Logs success message
+# Exit: Calls log_fatal on jq processing errors
+ship_app() {
+	app="${1}"
+	temp_file="${SHIPPED_JSON}.tmp"
+
+	# Use jq to safely add the app to alwaysEnabled array if not already present
+	# The filter checks if the app is already in the array before adding
+	if ! jq --arg app "${app}" \
+		'if (.alwaysEnabled | index($app)) then . else .alwaysEnabled += [$app] end' \
+		"${SHIPPED_JSON}" > "${temp_file}"; then
+		log_fatal "Failed to process ${app} with jq"
+	fi
+
+	# Atomically replace the original file
+	mv "${temp_file}" "${SHIPPED_JSON}"
+	log_info "Shipped app '${app}' as always enabled"
+}
+
 # Validate that shipped.json is valid JSON
 # Performs a validation check on shipped.json using jq
 # Usage: validate_shipped_json
@@ -173,23 +216,38 @@ main() {
 	# determine which apps can be disabled or not.
 	# defaultEnabled is only used during installation, but not for updates.
 
-	log_info "Removing apps from 'shipped' list..."
+	log_info "Processing apps configuration..."
 
 	# Load disabled apps list
 	DISABLED_APPS=$(read_app_list "${DISABLED_APPS_FILE}")
 
-	# Process each app in the list
-	app_count=0
-	for app in ${DISABLED_APPS}; do
-		# Process the app
-		unship_app "${app}"
-		app_count=$((app_count + 1))
-	done
+	# Load always-enabled apps list
+	ALWAYS_ENABLED_APPS=$(read_app_list "${ALWAYS_ENABLED_APPS_FILE}")
+
+	# Process disabled apps - remove from shipped list
+	disabled_count=0
+	if [ -n "${DISABLED_APPS}" ]; then
+		log_info "Removing apps from 'shipped' list..."
+		for app in ${DISABLED_APPS}; do
+			unship_app "${app}"
+			disabled_count=$((disabled_count + 1))
+		done
+	fi
+
+	# Process always-enabled apps - add to alwaysEnabled array
+	enabled_count=0
+	if [ -n "${ALWAYS_ENABLED_APPS}" ]; then
+		log_info "Adding apps to 'alwaysEnabled' list..."
+		for app in ${ALWAYS_ENABLED_APPS}; do
+			ship_app "${app}"
+			enabled_count=$((enabled_count + 1))
+		done
+	fi
 
 	# Validate shipped.json after processing to ensure we didn't corrupt it
 	validate_shipped_json
 
-	log_info "Successfully processed ${app_count} apps"
+	log_info "Successfully processed ${disabled_count} disabled apps and ${enabled_count} always-enabled apps"
 }
 
 # Execute main function
