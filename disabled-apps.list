@@ -9,6 +9,3 @@ workflowengine
 files_fulltextsearch
 fulltextsearch
 fulltextsearch_elasticsearch
-
-#removed antivirus app
-files_antivirus
