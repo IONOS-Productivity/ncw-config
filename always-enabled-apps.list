@@ -14,12 +14,31 @@
 #   - Lines starting with # are comments
 #   - Empty lines are ignored
 #   - Whitespace is trimmed
+#   - Apps can be grouped by location with section headers
 #
 # Example:
+#   # Core apps (apps/)
+#   files_trashbin
+#   user_status
+#
+#   # External apps (apps-external/)
+#   text
 #   twofactor_totp
-#   encryption
 #
 ################################################################################
 
-# Two-factor authentication TOTP provider
+
+
+# Core apps (apps/)
+files_trashbin
+user_status
+webhook_listeners
+
+# External apps (apps-external/)
+ncw_apps_menu
+ncw_mailtemplate
+notify_push
+password_policy
+text
 twofactor_totp
+user_oidc
