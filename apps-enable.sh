@@ -35,6 +35,7 @@ read_app_list() {
 
 DISABLED_APPS=$( read_app_list "${BDIR}/disabled-apps.list" )
 ENABLED_CORE_APPS=$( read_app_list "${BDIR}/enabled-core-apps.list" )
+REMOVED_APPS=$( read_app_list "${BDIR}/removed-apps.txt" )
 
 execute_occ_command() {
 	php "${NEXTCLOUD_DIR}/occ" \
@@ -94,6 +95,27 @@ disable_app() {
 			log_fatal "Disable app \"${app_name}\" failed."
 		fi
 		log_success "App \"${app_name}\" disabled."
+}
+
+disable_removed_apps() {
+	# Disable apps from removed-apps.txt (always disable without checking state)
+	#
+	_count=0
+
+	if [ -z "${REMOVED_APPS}" ]; then
+		log_info "No removed apps to disable."
+		return
+	fi
+
+	log_info "Disabling removed apps..."
+	for app in ${REMOVED_APPS}; do
+		printf "${_color_blue}[i] Disabling removed app: %s${_color_reset}\n" "${app}"
+		disable_app "${app}"
+		_count=$(( _count + 1 ))
+	done
+
+	log_success "Disabled ${_count} removed apps."
+	echo
 }
 
 ensure_app_states() {
@@ -158,6 +180,7 @@ main() {
 	fi
 
 	log_info "Ensuring app states..."
+	disable_removed_apps
 	ensure_app_states
 }
 
