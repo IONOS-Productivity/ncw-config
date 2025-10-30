@@ -446,10 +446,13 @@ configure_ionos_mailconfig_api() {
 	execute_occ_command config:app:set --value no --type string mail ionos-mailconfig-enabled
 
 	# Check required environment variables
-	if ! validate_env_vars IONOS_MAILCONFIG_API_URL IONOS_MAILCONFIG_API_USER IONOS_MAILCONFIG_API_PASS; then
+	if ! validate_env_vars IONOS_MAILCONFIG_API_URL IONOS_MAILCONFIG_API_USER IONOS_MAILCONFIG_API_PASS EXT_REF CUSTOMER_DOMAIN; then
 		log_warning "Skipping mailconfig API configuration due to missing environment variables"
 		return 0
 	fi
+
+	log_info "EXT_REF: ${EXT_REF}"
+	log_info "CUSTOMER_DOMAIN: ${CUSTOMER_DOMAIN}"
 
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
