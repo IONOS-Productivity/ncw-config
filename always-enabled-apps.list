@@ -41,4 +41,3 @@ notify_push
 password_policy
 text
 twofactor_totp
-user_oidc
