@@ -5,7 +5,3 @@
 
 workflowengine
 
-# we removed the fulltextsearch app and its dependencies
-files_fulltextsearch
-fulltextsearch
-fulltextsearch_elasticsearch

@@ -4,9 +4,6 @@ files_reminders
 testing
 updatenotification
 workflowengine
-files_fulltextsearch
-fulltextsearch
-fulltextsearch_elasticsearch
 files_antivirus
 files_external
 user_oidc

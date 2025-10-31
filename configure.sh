@@ -574,6 +574,85 @@ disable_configured_apps() {
 	log_info "Disabled ${_disabled_apps_count} apps."
 }
 
+
+# Configure Elasticsearch integration
+configure_fulltextsearch_apps() {
+	log_info "Configuring Elasticsearch integration..."
+
+	# Validate required environment variables
+	_validation_failed=false
+
+	if [ -z "${ELASTIC_NEXTCLOUD_USERNAME}" ]; then
+		log_warning "ELASTIC_NEXTCLOUD_USERNAME environment variable is not set"
+		_validation_failed=true
+	fi
+
+	if [ -z "${ELASTIC_NEXTCLOUD_PASSWORD}" ]; then
+		log_warning "ELASTIC_NEXTCLOUD_PASSWORD environment variable is not set"
+		_validation_failed=true
+	fi
+
+	if [ -z "${ELASTIC_SEARCH_INDEX_NAME}" ]; then
+		log_warning "ELASTIC_SEARCH_INDEX_NAME environment variable is not set"
+		_validation_failed=true
+	fi
+
+	if [ "${_validation_failed}" = "true" ]; then
+		log_warning "fulltextsearch apps configuration skipped due to missing environment variables"
+		return 0
+	fi
+
+	# Install fulltextsearch core app
+	log_info "Installing fulltextsearch core..."
+	execute_occ_command app:enable fulltextsearch
+	
+	# Install files_fulltextsearch app
+	log_info "Installing files_fulltextsearch..."
+	execute_occ_command app:enable files_fulltextsearch
+	
+	# Install fulltextsearch elasticsearch provider
+	log_info "Installing fulltextsearch_elasticsearch..."
+	execute_occ_command app:enable fulltextsearch_elasticsearch
+		
+	# Configure fulltextsearch platform
+	log_info "Configuring fulltextsearch platform..."
+	execute_occ_command config:app:set fulltextsearch search_platform --value="OCA\\FullTextSearch_Elasticsearch\\Platform\\ElasticSearchPlatform"
+	execute_occ_command config:app:set fulltextsearch app_navigation --value="1"
+	
+	# Configure Elasticsearch settings
+	log_info "Configuring Elasticsearch settings..."
+	execute_occ_command config:app:set fulltextsearch_elasticsearch elastic_host --value="https://${ELASTIC_NEXTCLOUD_USERNAME}:${ELASTIC_NEXTCLOUD_PASSWORD}@${ELASTIC_HOST:-elasticsearch.elasticsearch}:${ELASTIC_PORT:-9200}"
+	execute_occ_command config:app:set fulltextsearch_elasticsearch elastic_index --value="${ELASTIC_SEARCH_INDEX_NAME}"
+	execute_occ_command config:app:set fulltextsearch_elasticsearch analyzer_tokenizer --value="standard"
+	execute_occ_command config:app:set fulltextsearch_elasticsearch elastic_ssl_cert --value="/etc/elasticsearch-certs/ca.crt"
+	execute_occ_command config:app:set fulltextsearch_elasticsearch elastic_ssl_cert_verify --value="1"
+	
+	# Configure files_fulltextsearch settings
+	log_info "Configuring files_fulltextsearch..."
+	execute_occ_command config:app:set files_fulltextsearch files_audio --value="0"
+	execute_occ_command config:app:set files_fulltextsearch files_encrypted --value="0"
+	execute_occ_command config:app:set files_fulltextsearch files_external --value="0"
+	execute_occ_command config:app:set files_fulltextsearch files_federated --value="0"
+	execute_occ_command config:app:set files_fulltextsearch files_group_folders --value="0"
+	execute_occ_command config:app:set files_fulltextsearch files_image --value="0"
+	execute_occ_command config:app:set files_fulltextsearch files_local --value="1"
+	execute_occ_command config:app:set files_fulltextsearch files_office --value="1"
+	execute_occ_command config:app:set files_fulltextsearch files_pdf --value="1"
+	execute_occ_command config:app:set files_fulltextsearch files_size --value="20"
+	
+	# Enable debug logging for fulltext search
+	if [ "${ELASTIC_DEBUG_ENABLED}" = "1" ] || [ "${ELASTIC_DEBUG_ENABLED}" = "true" ]; then
+		log_info "Enabling debug logging..."
+		execute_occ_command config:system:set loglevel --value="0"
+		execute_occ_command config:app:set fulltextsearch_elasticsearch debug --value="1"
+		execute_occ_command config:app:set fulltextsearch debug --value="1"
+	else
+		log_info "Skipping debug logging (ELASTIC_DEBUG_ENABLED not set to 1/true)..."
+	fi
+
+	log_info "Fulltext search plugins installation and configuration completed"
+}
+
 # Enable and configure all Nextcloud apps
 # Usage: configure_apps
 configure_apps() {
@@ -612,6 +691,8 @@ configure_apps() {
 	# Configure admin features
 	configure_admin_delegation
 	configure_ionos_ai_model_hub
+
+	configure_fulltextsearch_apps
 }
 
 #===============================================================================

@@ -54,7 +54,10 @@ FULL_BUILD_APPS = \
 # App directories that need only composer
 COMPOSER_ONLY_APPS = \
 	circles \
-	ncw_mailtemplate
+	ncw_mailtemplate \
+	fulltextsearch \
+	files_fulltextsearch \
+	fulltextsearch_elasticsearch
 
 # App directories that need nothing to build (no changes made during build)
 NOTHING_TO_BUILD_APPS = \
