@@ -302,10 +302,20 @@ configure_spreed_app() {
 	log_info "Configuring talk signaling server: ${HPB_URL}"
 
 	# Remove existing signaling servers
-	execute_occ_command talk:signaling:list | jq -r '.servers[].server' | uniq | while read -r _existing_server; do
-		log_info "Removing existing signaling server: ${_existing_server}"
-		execute_occ_command talk:signaling:delete "${_existing_server}"
-	done
+	_server_list=$(execute_occ_command talk:signaling:list --output=json_pretty | jq -r '.servers[].server' 2>/dev/null | sort -u || echo "")
+	echo "_server_list: $_server_list"
+
+	if [ -z "${_server_list}" ]; then
+		log_info "No existing signaling servers found"
+	else
+		echo "${_server_list}" | while IFS= read -r _existing_server; do
+			if [ -n "${_existing_server}" ]; then
+				log_info "Removing existing signaling server: ${_existing_server}"
+				execute_occ_command talk:signaling:delete "${_existing_server}" || log_warning "Failed to delete signaling server: ${_existing_server}"
+			fi
+		done
+	fi
+
 	# Add new signaling server
 	execute_occ_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
 
