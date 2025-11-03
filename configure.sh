@@ -300,7 +300,13 @@ configure_spreed_app() {
 
 	# Configure High Performance Backend (HPB) signaling
 	log_info "Configuring talk signaling server: ${HPB_URL}"
-	execute_occ_command talk:signaling:delete 0
+
+	# Remove existing signaling servers
+	execute_occ_command talk:signaling:list | jq -r '.servers[].server' | uniq | while read -r _existing_server; do
+		log_info "Removing existing signaling server: ${_existing_server}"
+		execute_occ_command talk:signaling:delete "${_existing_server}"
+	done
+	# Add new signaling server
 	execute_occ_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
 
 	# Configure TURN servers
