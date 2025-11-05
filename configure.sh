@@ -320,7 +320,17 @@ configure_spreed_app() {
 	execute_occ_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
 
 	# Configure TURN servers
-	log_info "Configuring TURN server: ${TURN_SERVER_TCP_URL}"
+	turnList=$(execute_occ_command talk:turn:list --output=json_pretty 2>/dev/null || echo "")
+	if [ -z "${turnList}" ]; then
+		log_info "Existing TURN servers found. Proceeding with deletion..."
+		echo "$turnList" | \
+		jq -r '.[] | [.schemes, .server, .protocols] | @tsv' | \
+		xargs -n 3 execute_occ_command talk:turn:delete
+	else
+		log_info "No existing TURN servers found. Nothing to delete."
+	fi
+
+	log_info "Configuring new TURN server: ${TURN_SERVER_TCP_URL}"
 	execute_occ_command talk:turn:add turn "${TURN_SERVER_TCP_URL}" tcp --secret "${TURN_SERVER_SECRET}"
 
 	if [ "${TURN_SERVER_UDP_URL}" ]; then
