@@ -47,6 +47,7 @@ FULL_BUILD_APPS = \
 	tasks \
 	text \
 	twofactor_totp \
+	user_oidc \
 	viewer \
 	whiteboard \
 	password_policy
