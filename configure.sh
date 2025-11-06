@@ -40,6 +40,7 @@ DISABLED_APPS=$( read_app_list "${BDIR}/disabled-apps.list" )
 #       multiple delegations are only enabled/disabled once
 readonly ADMIN_DELEGATION_MAP="
 groupfolders:OCA\\GroupFolders\\Settings\\Admin
+mail:OCA\\Mail\\Settings\\AdminSettings
 oauth2:OCA\\OAuth2\\Settings\\Admin
 password_policy:OCA\\Password_Policy\\Settings\\Settings
 settings:OCA\\Settings\\Settings\\Admin\\Security
