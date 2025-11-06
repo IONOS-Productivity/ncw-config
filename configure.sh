@@ -189,6 +189,7 @@ configure_theming() {
 	execute_occ_command theming:config disable_admin_theming yes
 	#execute_occ_command theming:config favicon "${FAVICON_DIR}/favicon.ico"
 	execute_occ_command config:app:set theming backgroundMime --value backgroundColor
+	execute_occ_command theming:config url ""
 
 	# Set homepage URL if configured
 	_ionos_homepage=$(execute_occ_command config:system:get ionos_homepage)
