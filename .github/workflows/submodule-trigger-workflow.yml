@@ -194,6 +194,7 @@ jobs:
         run: |
           echo "::notice::✅ Created pre-release with tag ${{ needs.create-prerelease.outputs.tag_name }}"
           echo "::notice::🔗 Release URL: ${{ needs.create-prerelease.outputs.release_url }}"
-        if: needs.create-submodule-pr.result == 'success'
-        run: echo "::notice::📦 Submodule update PR created for ncw-server"
+          if [ "${{ needs.create-submodule-pr.result }}" == "success" ]; then
+            echo "::notice::📦 Submodule update PR created for ncw-server"
+          fi
           echo "::notice::💾 Commit: ${{ needs.create-prerelease.outputs.sha }}"
