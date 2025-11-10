@@ -60,6 +60,11 @@ COMPOSER_ONLY_APPS = \
 # App directories that need nothing to build (no changes made during build)
 NOTHING_TO_BUILD_APPS = \
 
+# Apps with special build targets (not in the standard categories above)
+# These apps have dedicated build_<app>_app targets with custom build logic
+SPECIAL_BUILD_APPS = \
+	notify_push
+
 # Apps to be removed from final package (read from removed-apps.txt)
 REMOVE_UNWANTED_APPS = $(shell [ -f IONOS/removed-apps.txt ] && sed '/^#/d;/^$$/d;s/^/apps\//' IONOS/removed-apps.txt || echo "")
 
@@ -67,13 +72,14 @@ REMOVE_UNWANTED_APPS = $(shell [ -f IONOS/removed-apps.txt ] && sed '/^#/d;/^$$/
 FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
 COMPOSER_ONLY_TARGETS = $(patsubst %,build_%_app,$(COMPOSER_ONLY_APPS))
 NOTHING_TO_BUILD_TARGETS = $(patsubst %,build_%_app,$(NOTHING_TO_BUILD_APPS))
+SPECIAL_BUILD_TARGETS = $(patsubst %,build_%_app,$(SPECIAL_BUILD_APPS))
 
 # Core build targets
 .PHONY: help
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications - dynamically generated
-.PHONY: build_all_external_apps build_notify_push_app build_notify_push_binary build_core_app_theming $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(NOTHING_TO_BUILD_TARGETS)
+.PHONY: build_all_external_apps build_notify_push_binary build_core_app_theming $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(NOTHING_TO_BUILD_TARGETS) $(SPECIAL_BUILD_TARGETS)
 # Configuration and packaging
 .PHONY: add_config_partials patch_shipped_json version.json zip_dependencies
 # Pipeline targets for GitLab workflow
@@ -248,7 +254,7 @@ zip_dependencies: patch_shipped_json version.json ## Zip relevant files
 	@echo "[i] Package $(TARGET_PACKAGE_NAME) created successfully"
 
 # Parallel build targets
-build_all_external_apps: $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(NOTHING_TO_BUILD_TARGETS) build_notify_push_app ## Build all external apps
+build_all_external_apps: $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(NOTHING_TO_BUILD_TARGETS) $(SPECIAL_BUILD_TARGETS) ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
@@ -337,7 +343,7 @@ validate_external_apps: ## Validate and suggest proper categorization for extern
 	echo ""; \
 	echo "[i] Checking configured apps for missing submodules..."; \
 	\
-	for app in $(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS); do \
+	for app in $(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS); do \
 		if [ ! -d "apps-external/$$app" ]; then \
 			echo "  ❌ ERROR: App $$app is configured but directory does not exist"; \
 			validation_failed=1; \
@@ -585,7 +591,7 @@ generate_external_apps_matrix: ## Generate external-apps-matrix.yml file with ap
 	@echo "apps-external:"
 	@bash -c ' \
 	# Process all configured apps \
-	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS) notify_push"; \
+	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS)"; \
 	# Sort apps alphabetically \
 	sorted_apps=$$(echo $$all_configured_apps | tr " " "\n" | sort | tr "\n" " "); \
 	for app in $$sorted_apps; do \
@@ -618,7 +624,7 @@ generate_external_apps_matrix_json: ## Generate external-apps-matrix.json file w
 	@echo "[i] Generating external apps matrix JSON file..." >&2
 	@bash -c ' \
 	# Process all configured apps \
-	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS) notify_push"; \
+	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS)"; \
 	echo "["; \
 	first=true; \
 	found_any=false; \
