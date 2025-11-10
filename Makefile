@@ -83,7 +83,7 @@ NOTHING_TO_BUILD_TARGETS = $(patsubst %,build_%_app,$(NOTHING_TO_BUILD_APPS))
 # Validation targets
 .PHONY: validate_external_apps validate_all
 # Matrix generation
-.PHONY: generate_external_apps_matrix
+.PHONY: generate_external_apps_matrix generate_external_apps_matrix_json
 
 help: ## This help.
 	@echo "Usage: make [target]"
@@ -104,6 +104,7 @@ help: ## This help.
 	@echo "  validate_all               Run all validation tasks"
 	@echo "Matrix generation targets:"
 	@echo "  generate_external_apps_matrix  Generate external apps matrix YAML file"
+	@echo "  generate_external_apps_matrix_json  Generate external apps matrix JSON file"
 # HELP
 # This will output the help for each task
 # thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
@@ -610,3 +611,47 @@ generate_external_apps_matrix: ## Generate external-apps-matrix.yml file with ap
 			echo ""; \
 		fi; \
 	done'
+
+generate_external_apps_matrix_json: ## Generate external-apps-matrix.json file with app configuration details
+	@echo "[i] Generating external apps matrix JSON file..." >&2
+	@bash -c ' \
+	# Process all configured apps \
+	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS) notify_push"; \
+	echo "["; \
+	first=true; \
+	found_any=false; \
+	for app in $$all_configured_apps; do \
+		if [ -d "apps-external/$$app" ]; then \
+			found_any=true; \
+			if [ "$$first" = true ]; then \
+				first=false; \
+			else \
+				echo "  },"; \
+			fi; \
+			echo "  {"; \
+			echo "    \"name\": \"$$app\","; \
+			echo "    \"path\": \"apps-external/$$app\","; \
+			\
+			# Check for npm (package.json) \
+			if [ -f "apps-external/$$app/package.json" ]; then \
+				echo "    \"has_npm\": true,"; \
+			else \
+				echo "    \"has_npm\": false,"; \
+			fi; \
+			\
+			# Check for composer (composer.json) \
+			if [ -f "apps-external/$$app/composer.json" ]; then \
+				echo "    \"has_composer\": true,"; \
+			else \
+				echo "    \"has_composer\": false,"; \
+			fi; \
+			\
+			# Determine makefile target \
+			makefile_target="build_$${app}_app"; \
+			echo "    \"makefile_target\": \"$$makefile_target\""; \
+		fi; \
+	done; \
+	if [ "$$found_any" = true ]; then \
+		echo "  }"; \
+	fi; \
+	echo "]"' | jq 'sort_by(.name)'
