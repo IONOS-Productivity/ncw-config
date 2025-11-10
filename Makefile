@@ -581,7 +581,7 @@ validate_all: ## Run all validation tasks
 	@echo "[✓] Validation completed successfully"
 
 generate_external_apps_matrix: ## Generate external-apps-matrix.yml file with app configuration details
-	@echo "[i] Generating external apps matrix YAML file..."
+	@echo "[i] Generating external apps matrix YAML file..." >&2
 	@echo "apps-external:"
 	@bash -c ' \
 	# Process all configured apps \
