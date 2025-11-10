@@ -49,13 +49,18 @@ FULL_BUILD_APPS = \
 	twofactor_totp \
 	user_oidc \
 	viewer \
-	whiteboard \
-	password_policy
+	whiteboard
 
 # App directories that need only composer
 COMPOSER_ONLY_APPS = \
 	circles \
 	ncw_mailtemplate
+
+# App directories that need only composer but with --no-scripts (to avoid dev-only composer script issues)
+# These apps have @composer bin commands in post-install-cmd but the bamarni/composer-bin-plugin
+# is only in require-dev, so it fails when running with --no-dev
+COMPOSER_NO_SCRIPTS_APPS = \
+	password_policy
 
 # App directories that need nothing to build (no changes made during build)
 NOTHING_TO_BUILD_APPS = \
@@ -71,6 +76,7 @@ REMOVE_UNWANTED_APPS = $(shell [ -f IONOS/removed-apps.txt ] && sed '/^#/d;/^$$/
 # Generate build targets dynamically
 FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
 COMPOSER_ONLY_TARGETS = $(patsubst %,build_%_app,$(COMPOSER_ONLY_APPS))
+COMPOSER_NO_SCRIPTS_TARGETS = $(patsubst %,build_%_app,$(COMPOSER_NO_SCRIPTS_APPS))
 NOTHING_TO_BUILD_TARGETS = $(patsubst %,build_%_app,$(NOTHING_TO_BUILD_APPS))
 SPECIAL_BUILD_TARGETS = $(patsubst %,build_%_app,$(SPECIAL_BUILD_APPS))
 
@@ -79,7 +85,7 @@ SPECIAL_BUILD_TARGETS = $(patsubst %,build_%_app,$(SPECIAL_BUILD_APPS))
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications - dynamically generated
-.PHONY: build_all_external_apps build_notify_push_binary build_core_app_theming $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(NOTHING_TO_BUILD_TARGETS) $(SPECIAL_BUILD_TARGETS)
+.PHONY: build_all_external_apps build_notify_push_binary build_core_app_theming $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(COMPOSER_NO_SCRIPTS_TARGETS) $(NOTHING_TO_BUILD_TARGETS) $(SPECIAL_BUILD_TARGETS)
 # Configuration and packaging
 .PHONY: add_config_partials patch_shipped_json version.json zip_dependencies
 # Pipeline targets for GitLab workflow
@@ -102,6 +108,8 @@ help: ## This help.
 	@for app in $(FULL_BUILD_APPS); do printf "\033[36m%-30s\033[0m Build $$app app (full build)\n" "build_$${app}_app"; done
 	@echo "  Composer-only apps:"
 	@for app in $(COMPOSER_ONLY_APPS); do printf "\033[36m%-30s\033[0m Build $$app app (composer only)\n" "build_$${app}_app"; done
+	@echo "  Composer-only apps (no scripts):"
+	@for app in $(COMPOSER_NO_SCRIPTS_APPS); do printf "\033[36m%-30s\033[0m Build $$app app (composer no scripts)\n" "build_$${app}_app"; done
 	@echo "  Nothing to build apps:"
 	@for app in $(NOTHING_TO_BUILD_APPS); do printf "\033[36m%-30s\033[0m Nothing to build for $$app app\n" "build_$${app}_app"; done
 	@echo ""
@@ -174,6 +182,14 @@ define build_composer_app
 	@echo "[✓] $(1) app built successfully"
 endef
 
+# Common function to build apps with composer only but skip scripts
+define build_composer_no_scripts_app
+	@echo "[i] Building $(1) app (no scripts)..."
+	@cd apps-external/$(1) && \
+		composer install --no-dev -o --no-interaction --no-scripts
+	@echo "[✓] $(1) app built successfully"
+endef
+
 build_core_app_theming: .precheck ## Build theming app
 	@echo "[i] Building theming app..."
 	cd apps/theming/composer && \
@@ -193,6 +209,10 @@ $(FULL_BUILD_TARGETS): build_%_app:
 # Dynamic rules for composer-only apps
 $(COMPOSER_ONLY_TARGETS): build_%_app:
 	$(call build_composer_app,$(patsubst build_%_app,%,$@))
+
+# Dynamic rules for composer-only apps with --no-scripts
+$(COMPOSER_NO_SCRIPTS_TARGETS): build_%_app:
+	$(call build_composer_no_scripts_app,$(patsubst build_%_app,%,$@))
 
 # Dynamic rules for apps with nothing to build
 $(NOTHING_TO_BUILD_TARGETS): build_%_app:
@@ -294,7 +314,7 @@ zip_dependencies: patch_shipped_json version.json ## Zip relevant files
 	@echo "[i] Package $(TARGET_PACKAGE_NAME) created successfully"
 
 # Parallel build targets
-build_all_external_apps: $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(NOTHING_TO_BUILD_TARGETS) $(SPECIAL_BUILD_TARGETS) ## Build all external apps
+build_all_external_apps: $(FULL_BUILD_TARGETS) $(COMPOSER_ONLY_TARGETS) $(COMPOSER_NO_SCRIPTS_TARGETS) $(NOTHING_TO_BUILD_TARGETS) $(SPECIAL_BUILD_TARGETS) ## Build all external apps
 	@echo "[i] All external apps built successfully"
 
 build_after_external_apps: build_ncw add_config_partials ## Build NCW and add configs after external apps are done
@@ -383,7 +403,7 @@ validate_external_apps: .precheck ## Validate and suggest proper categorization 
 	echo ""; \
 	echo "[i] Checking configured apps for missing submodules..."; \
 	\
-	for app in $(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS); do \
+	for app in $(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(COMPOSER_NO_SCRIPTS_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS); do \
 		if [ ! -d "apps-external/$$app" ]; then \
 			echo "  ❌ ERROR: App $$app is configured but directory does not exist"; \
 			validation_failed=1; \
@@ -422,10 +442,21 @@ validate_external_apps: .precheck ## Validate and suggest proper categorization 
 			has_build_script=0; \
 			is_configured=0; \
 			current_config=""; \
+			needs_no_scripts=0; \
 			\
 			if [ -f "apps-external/$$app/composer.json" ]; then \
 				echo "  ✓ composer.json found"; \
 				has_composer=1; \
+				\
+				# Check if app needs --no-scripts due to bamarni plugin in require-dev only \
+				if grep -q "@composer bin" "apps-external/$$app/composer.json" 2>/dev/null; then \
+					has_plugin_in_require=$$(jq -r '"'"'.require // {} | keys[] | select(. == "bamarni/composer-bin-plugin")'"'"' "apps-external/$$app/composer.json" 2>/dev/null || echo ""); \
+					has_plugin_in_reqdev=$$(jq -r '"'"'."require-dev" // {} | keys[] | select(. == "bamarni/composer-bin-plugin")'"'"' "apps-external/$$app/composer.json" 2>/dev/null || echo ""); \
+					if [ -z "$$has_plugin_in_require" ] && [ -n "$$has_plugin_in_reqdev" ]; then \
+						needs_no_scripts=1; \
+						echo "  ⚠️  Uses @composer bin but plugin only in require-dev - needs --no-scripts"; \
+					fi; \
+				fi; \
 			fi; \
 			\
 			if [ -f "apps-external/$$app/package.json" ]; then \
@@ -451,6 +482,16 @@ validate_external_apps: .precheck ## Validate and suggest proper categorization 
 				for composer_app in $(COMPOSER_ONLY_APPS); do \
 					if [ "$$app" = "$$composer_app" ]; then \
 						current_config="COMPOSER_ONLY_APPS"; \
+						is_configured=1; \
+						break; \
+					fi; \
+				done; \
+			fi; \
+			\
+			if [ $$is_configured -eq 0 ]; then \
+				for composer_no_scripts_app in $(COMPOSER_NO_SCRIPTS_APPS); do \
+					if [ "$$app" = "$$composer_no_scripts_app" ]; then \
+						current_config="COMPOSER_NO_SCRIPTS_APPS"; \
 						is_configured=1; \
 						break; \
 					fi; \
@@ -497,6 +538,11 @@ validate_external_apps: .precheck ## Validate and suggest proper categorization 
 				category_recommendation="FIX REQUIRED"; \
 				validation_failed=1; \
 				error_app_list="$$error_app_list $$app"; \
+			elif [ $$needs_no_scripts -eq 1 ]; then \
+				# If app needs --no-scripts, recommend COMPOSER_NO_SCRIPTS_APPS regardless of other factors \
+				recommendation="✅ COMPOSER_NO_SCRIPTS_APPS"; \
+				category_recommendation="COMPOSER_NO_SCRIPTS_APPS"; \
+				reasoning="Has @composer bin command but bamarni plugin only in require-dev - needs --no-scripts flag"; \
 			elif [ $$has_composer -eq 1 ] && [ $$has_package -eq 0 ]; then \
 				recommendation="✅ COMPOSER_ONLY_APPS"; \
 				category_recommendation="COMPOSER_ONLY_APPS"; \
@@ -521,6 +567,11 @@ validate_external_apps: .precheck ## Validate and suggest proper categorization 
 			if [ "$$current_config" = "FULL_BUILD_APPS" ] && [ "$$category_recommendation" = "FULL_BUILD_APPS" ]; then \
 				config_correct=1; \
 			elif [ "$$current_config" = "COMPOSER_ONLY_APPS" ] && [ "$$category_recommendation" = "COMPOSER_ONLY_APPS" ]; then \
+				config_correct=1; \
+			elif [ "$$current_config" = "COMPOSER_NO_SCRIPTS_APPS" ] && [ "$$category_recommendation" = "COMPOSER_NO_SCRIPTS_APPS" ]; then \
+				config_correct=1; \
+			elif [ "$$current_config" = "COMPOSER_NO_SCRIPTS_APPS" ]; then \
+				# COMPOSER_NO_SCRIPTS_APPS are always considered correctly configured (special case for composer script issues) \
 				config_correct=1; \
 			elif [ "$$current_config" = "NOTHING_TO_BUILD_APPS" ]; then \
 				# NOTHING_TO_BUILD_APPS are always considered correctly configured \
@@ -600,13 +651,19 @@ validate_external_apps: .precheck ## Validate and suggest proper categorization 
 			echo "        another_app"; \
 			echo ""; \
 			echo "   For COMPOSER_ONLY_APPS (PHP-only apps):"; \
-			echo "   Add to line ~40: COMPOSER_ONLY_APPS = \\"; \
+			echo "   Add to line ~56: COMPOSER_ONLY_APPS = \\"; \
 			echo "        existing_app \\"; \
 			echo "        your_new_app \\"; \
 			echo "        another_app"; \
 			echo ""; \
+			echo "   For COMPOSER_NO_SCRIPTS_APPS (apps with composer scripts issues):"; \
+			echo "   Add to line ~62: COMPOSER_NO_SCRIPTS_APPS = \\"; \
+			echo "        existing_app \\"; \
+			echo "        your_new_app"; \
+			echo "   (Use this for apps with @composer bin commands but bamarni plugin only in require-dev)"; \
+			echo ""; \
 			echo "   For NOTHING_TO_BUILD_APPS (no build steps needed):"; \
-			echo "   Add to line ~47: NOTHING_TO_BUILD_APPS = \\"; \
+			echo "   Add to line ~68: NOTHING_TO_BUILD_APPS = \\"; \
 			echo "        existing_app \\"; \
 			echo "        your_new_app"; \
 		fi; \
@@ -631,7 +688,7 @@ generate_external_apps_matrix: .precheck ## Generate external-apps-matrix.yml fi
 	@echo "apps-external:"
 	@bash -c ' \
 	# Process all configured apps \
-	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS)"; \
+	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(COMPOSER_NO_SCRIPTS_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS)"; \
 	# Sort apps alphabetically \
 	sorted_apps=$$(echo $$all_configured_apps | tr " " "\n" | sort | tr "\n" " "); \
 	for app in $$sorted_apps; do \
@@ -664,7 +721,7 @@ generate_external_apps_matrix_json: .precheck ## Generate external-apps-matrix.j
 	@echo "[i] Generating external apps matrix JSON file..." >&2
 	@bash -c ' \
 	# Process all configured apps \
-	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS)"; \
+	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(COMPOSER_NO_SCRIPTS_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS)"; \
 	echo "["; \
 	first=true; \
 	found_any=false; \
