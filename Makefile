@@ -586,7 +586,9 @@ generate_external_apps_matrix: ## Generate external-apps-matrix.yml file with ap
 	@bash -c ' \
 	# Process all configured apps \
 	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(NOTHING_TO_BUILD_APPS) notify_push"; \
-	for app in $$all_configured_apps; do \
+	# Sort apps alphabetically \
+	sorted_apps=$$(echo $$all_configured_apps | tr " " "\n" | sort | tr "\n" " "); \
+	for app in $$sorted_apps; do \
 		if [ -d "apps-external/$$app" ]; then \
 			echo "  - name: $$app"; \
 			echo "    path: apps-external/$$app"; \
