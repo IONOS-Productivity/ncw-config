@@ -17,3 +17,6 @@
 composer.phar
 composer.lock
 /vendor/
+
+# allow developer to have local config
+/configs/localdev.config.php
