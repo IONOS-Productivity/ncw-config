@@ -93,7 +93,7 @@ SPECIAL_BUILD_TARGETS = $(patsubst %,build_%_app,$(SPECIAL_BUILD_APPS))
 # Meta targets
 .PHONY: build_release build_locally clean
 # Validation targets
-.PHONY: validate_external_apps validate_all
+.PHONY: validate_external_apps validate_all validate_app_list_uniqueness
 # Matrix generation
 .PHONY: generate_external_apps_matrix generate_external_apps_matrix_json
 
@@ -114,8 +114,9 @@ help: ## This help.
 	@for app in $(NOTHING_TO_BUILD_APPS); do printf "\033[36m%-30s\033[0m Nothing to build for $$app app\n" "build_$${app}_app"; done
 	@echo ""
 	@echo "Validation targets:"
-	@echo "  validate_external_apps     Validate all external apps configuration"
-	@echo "  validate_all               Run all validation tasks"
+	@echo "  validate_app_list_uniqueness  Validate apps are in only one list with no conflicts"
+	@echo "  validate_external_apps        Validate all external apps configuration"
+	@echo "  validate_all                  Run all validation tasks"
 	@echo "Matrix generation targets:"
 	@echo "  generate_external_apps_matrix  Generate external apps matrix YAML file"
 	@echo "  generate_external_apps_matrix_json  Generate external apps matrix JSON file"
@@ -678,8 +679,18 @@ validate_external_apps: .precheck ## Validate and suggest proper categorization 
 		exit 1; \
 	fi'
 
+validate_app_list_uniqueness: .precheck ## Validate that apps are only in one list and not duplicated by hardcoded targets
+	@IONOS/scripts/validate_app_list_uniqueness.sh \
+		"$(FULL_BUILD_APPS)" \
+		"$(COMPOSER_ONLY_APPS)" \
+		"$(COMPOSER_NO_SCRIPTS_APPS)" \
+		"$(NOTHING_TO_BUILD_APPS)" \
+		"$(SPECIAL_BUILD_APPS)" \
+		"$(MAKEFILE_LIST)"
+
 validate_all: .precheck ## Run all validation tasks
 	@echo "[i] Running validation..."
+	@$(MAKE) -f IONOS/Makefile validate_app_list_uniqueness
 	@$(MAKE) -f IONOS/Makefile validate_external_apps
 	@echo "[✓] Validation completed successfully"
 
