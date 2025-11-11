@@ -75,7 +75,7 @@ NOTHING_TO_BUILD_TARGETS = $(patsubst %,build_%_app,$(NOTHING_TO_BUILD_APPS))
 SPECIAL_BUILD_TARGETS = $(patsubst %,build_%_app,$(SPECIAL_BUILD_APPS))
 
 # Core build targets
-.PHONY: help
+.PHONY: help .precheck
 # Main Nextcloud build
 .PHONY: build_ncw
 # Applications - dynamically generated
@@ -116,6 +116,32 @@ help: ## This help.
 # thanks to https://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 .DEFAULT_GOAL := help
 
+.precheck:
+	@{ \
+		if [ ! -d "apps-external" ]; then \
+			echo ""; \
+			echo "**********************************************************************"; \
+			echo "ERROR: apps-external/ directory not found!"; \
+			echo ""; \
+			echo "This Makefile must be executed from the Nextcloud project root."; \
+			echo "Usage: make -f IONOS/Makefile <target>"; \
+			echo "**********************************************************************"; \
+			echo ""; \
+			exit 1; \
+		fi; \
+		if ! test -f "version.php" || ! test -d "lib" || ! test -d "core"; then \
+			echo ""; \
+			echo "**********************************************************************"; \
+			echo "ERROR: Required Nextcloud directories/files not found!"; \
+			echo ""; \
+			echo "This doesn't appear to be a valid Nextcloud project directory."; \
+			echo "Usage: make -f IONOS/Makefile <target>"; \
+			echo "**********************************************************************"; \
+			echo ""; \
+			exit 1; \
+		fi; \
+	} >&2
+
 # Common function to build apps with full build process
 define build_full_app
 	@echo "[i] Building $(1) app..."
@@ -134,13 +160,13 @@ define build_composer_app
 	@echo "[✓] $(1) app built successfully"
 endef
 
-build_core_app_theming: ## Build theming app
+build_core_app_theming: .precheck ## Build theming app
 	@echo "[i] Building theming app..."
 	cd apps/theming/composer && \
 		composer dump-autoload --optimize
 	@echo "[✓] theming app built successfully"
 
-build_ncw: build_core_app_theming ## Build Nextcloud Workspace
+build_ncw: .precheck build_core_app_theming ## Build Nextcloud Workspace
 #	composer install --no-dev -o && \
 #	npm ci && \
 #	NODE_OPTIONS="--max-old-space-size=4096" npm run build
@@ -180,16 +206,16 @@ $(NOTIFY_PUSH_DIR)/vendor/autoload.php: $(NOTIFY_PUSH_DIR)/composer.json
 build_notify_push_binary: $(NOTIFY_PUSH_BINARY) ## Download notify_push binary
 	@echo "[i] notify_push binary ready"
 
-add_config_partials: ## Copy custom config files to Nextcloud config
+add_config_partials: .precheck ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
 	cp IONOS/configs/*.config.php config/
 	@echo "[✓] Config files copied successfully"
 
-patch_shipped_json: ## Patch shipped.json to make core apps disableable
+patch_shipped_json: .precheck ## Patch shipped.json to make core apps disableable
 	@echo "[i] Patching shipped.json..."
 	IONOS/apps-disable.sh
 
-version.json: ## Generate version file
+version.json: .precheck ## Generate version file
 	@echo "[i] Generating version.json..."
 	buildDate=$$(date +%s) && \
 	buildRef=$$(git rev-parse --short HEAD) && \
@@ -276,7 +302,7 @@ clean: ## Clean build artifacts
 	@rm -f $(NOTIFY_PUSH_BINARY) $(NOTIFY_PUSH_BINARY).sha256
 	@echo "[✓] Clean completed"
 
-validate_external_apps: ## Validate and suggest proper categorization for external apps
+validate_external_apps: .precheck ## Validate and suggest proper categorization for external apps
 	@echo "[i] Analyzing external apps to suggest proper build configuration..."
 	@echo "[i] Checking all apps in apps-external directory..."
 	@bash -c ' \
@@ -581,12 +607,12 @@ validate_external_apps: ## Validate and suggest proper categorization for extern
 		exit 1; \
 	fi'
 
-validate_all: ## Run all validation tasks
+validate_all: .precheck ## Run all validation tasks
 	@echo "[i] Running validation..."
 	@$(MAKE) -f IONOS/Makefile validate_external_apps
 	@echo "[✓] Validation completed successfully"
 
-generate_external_apps_matrix: ## Generate external-apps-matrix.yml file with app configuration details
+generate_external_apps_matrix: .precheck ## Generate external-apps-matrix.yml file with app configuration details
 	@echo "[i] Generating external apps matrix YAML file..." >&2
 	@echo "apps-external:"
 	@bash -c ' \
@@ -620,7 +646,7 @@ generate_external_apps_matrix: ## Generate external-apps-matrix.yml file with ap
 		fi; \
 	done'
 
-generate_external_apps_matrix_json: ## Generate external-apps-matrix.json file with app configuration details
+generate_external_apps_matrix_json: .precheck ## Generate external-apps-matrix.json file with app configuration details
 	@echo "[i] Generating external apps matrix JSON file..." >&2
 	@bash -c ' \
 	# Process all configured apps \
