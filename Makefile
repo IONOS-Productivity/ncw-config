@@ -140,6 +140,20 @@ help: ## This help.
 			echo ""; \
 			exit 1; \
 		fi; \
+		if ! command -v jq >/dev/null 2>&1; then \
+			echo ""; \
+			echo "**********************************************************************"; \
+			echo "ERROR: jq is not installed!"; \
+			echo ""; \
+			echo "jq is required for JSON processing in this Makefile."; \
+			echo "Please install jq:"; \
+			echo "  - Ubuntu/Debian: sudo apt-get install jq"; \
+			echo "  - macOS: brew install jq"; \
+			echo "  - Other: https://jqlang.github.io/jq/download/"; \
+			echo "**********************************************************************"; \
+			echo ""; \
+			exit 1; \
+		fi; \
 	} >&2
 
 # Common function to build apps with full build process
