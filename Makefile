@@ -34,7 +34,6 @@ FULL_BUILD_APPS = \
 	contacts \
 	deck \
 	end_to_end_encryption \
-	forms \
 	groupfolders \
 	integration_openai \
 	mail \
@@ -46,7 +45,6 @@ FULL_BUILD_APPS = \
 	tables \
 	tasks \
 	text \
-	twofactor_totp \
 	user_oidc \
 	viewer \
 	whiteboard
@@ -60,7 +58,9 @@ COMPOSER_ONLY_APPS = \
 # These apps have @composer bin commands in post-install-cmd but the bamarni/composer-bin-plugin
 # is only in require-dev, so it fails when running with --no-dev
 COMPOSER_NO_SCRIPTS_APPS = \
-	password_policy
+	forms \
+	password_policy \
+	twofactor_totp
 
 # App directories that need nothing to build (no changes made during build)
 NOTHING_TO_BUILD_APPS = \
