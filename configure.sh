@@ -184,6 +184,7 @@ configure_theming() {
 
 	execute_occ_command theming:config imprintUrl ""
 	execute_occ_command theming:config privacyUrl ""
+	execute_occ_command theming:config devDocsUrl ""
 	execute_occ_command theming:config primary_color "#003D8F"
 	execute_occ_command config:app:set --value "#ffffff" -- theming background_color
 	execute_occ_command theming:config disable-user-theming yes
