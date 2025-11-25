@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: 2024 IONOS Productivity
 # SPDX-License-Identifier: MIT
-name: Trigger ncw-server submodule update
+name: Create pre-release and update ncw-server submodule
 
 on:
   push:
@@ -13,62 +13,188 @@ permissions:
   pull-requests: write
 
 jobs:
-  get-commit-info:
-    runs-on: [self-hosted]
+  create-prerelease:
+    runs-on: [ubuntu-latest]
     outputs:
       sha: ${{ steps.commit-info.outputs.sha }}
       short_sha: ${{ steps.commit-info.outputs.short_sha }}
-      message: ${{ steps.commit-info.outputs.message }}
-      author: ${{ steps.commit-info.outputs.author }}
+      tag_name: ${{ steps.commit-info.outputs.short_sha }}
+      release_url: ${{ steps.create-release.outputs.html_url }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Get commit information
         id: commit-info
         run: |
           echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "message=$(git log -1 --pretty=format:'%s')" >> $GITHUB_OUTPUT
-          echo "author=$(git log -1 --pretty=format:'%an')" >> $GITHUB_OUTPUT
 
-  call-submodule-update:
-    needs: get-commit-info
-    runs-on: [self-hosted]
-    
-    steps:
-      - name: Trigger ncw-server submodule update workflow
+      - name: Check GitHub CLI installation
+        id: check-gh
         run: |
-          curl -X POST \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: token ${{ secrets.SUBMODULE_UPDATE_PAT }}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/IONOS-Productivity/ncw-server/dispatches \
-            -d '{
-              "event_type": "submodule-update",
-              "client_payload": {
-                "submodule_name": "IONOS",
-                "submodule_repo": "${{ github.repository }}",
-                "commit_sha": "${{ needs.get-commit-info.outputs.sha }}",
-                "commit_message": "${{ needs.get-commit-info.outputs.message }}",
-                "trigger_repo": "${{ github.repository }}",
-                "trigger_ref": "${{ github.ref }}"
-              }
-            }'
+          if command -v gh &> /dev/null; then
+            echo "installed=true" >> $GITHUB_OUTPUT
+          else
+            echo "installed=false" >> $GITHUB_OUTPUT
+          fi
 
+      - name: Install GitHub CLI
+        if: steps.check-gh.outputs.installed != 'true'
+        run: |
+          echo "Installing GitHub CLI..."
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh -y
+
+      - name: Create pre-release
+        id: create-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if the release already exists
+          if gh release view "${{ steps.commit-info.outputs.short_sha }}" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            # Release exists, get its URL
+            RELEASE_URL=$(gh release view "${{ steps.commit-info.outputs.short_sha }}" --repo "${{ github.repository }}" --json url -q ".url")
+          else
+            # Release does not exist, create it
+            RELEASE_URL=$(gh release create "${{ steps.commit-info.outputs.short_sha }}" \
+              --title "Pre-release ${{ steps.commit-info.outputs.short_sha }}" \
+              --generate-notes \
+              --prerelease \
+              --repo "${{ github.repository }}")
+          fi
+          echo "html_url=$RELEASE_URL" >> $GITHUB_OUTPUT
+
+  create-submodule-pr:
+    needs: create-prerelease
+    runs-on: [ubuntu-latest]
+    if: github.repository == 'IONOS-Productivity/ncw-config'
+
+    steps:
+      - name: Checkout ncw-server repository
+        uses: actions/checkout@v5
+        with:
+          repository: IONOS-Productivity/ncw-server
+          token: ${{ secrets.NCW_SERVER_PAT }}
+          ref: ionos-dev
+          fetch-depth: 1
+          sparse-checkout: |
+            IONOS
+            .gitmodules
+
+      - name: Check GitHub CLI installation
+        id: check-gh
+        run: |
+          if command -v gh &> /dev/null; then
+            echo "installed=true" >> $GITHUB_OUTPUT
+          else
+            echo "installed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install GitHub CLI
+        if: steps.check-gh.outputs.installed != 'true'
+        run: |
+          echo "Installing GitHub CLI..."
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh -y
+
+      - name: Update IONOS submodule
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Configure git to use HTTPS instead of SSH for GitHub
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global url."https://".insteadOf "ssh://"
+          
+          # Create a new branch for the update from ionos-dev
+          BRANCH_NAME="update-ionos-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
+          git checkout -B "$BRANCH_NAME"
+          
+          # Initialize only the IONOS submodule
+          git submodule update --init IONOS
+          
+          # Update the submodule to the new commit
+          cd IONOS
+          git fetch origin main
+          git checkout ${{ needs.create-prerelease.outputs.sha }}
+          
+          # Get the commit message for description
+          COMMIT_MSG=$(git log -1 --pretty=format:'%s')
+          cd ..
+          
+          # Commit the submodule update with release link
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-prerelease.outputs.short_sha }}"
+          git add IONOS
+          git commit -m "IONOS(config): update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)" \
+            -m "" \
+            -m "$RELEASE_URL" \
+            -m "" \
+            -m "Signed-off-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          
+          # Push the branch
+          git push origin "$BRANCH_NAME"
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.NCW_SERVER_PAT }}
+        run: |
+          BRANCH_NAME="update-ionos-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
+          
+          # Get the commit message from IONOS submodule
+          cd IONOS
+          COMMIT_MSG=$(git log -1 --pretty=format:'%s')
+          cd ..
+          
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-prerelease.outputs.short_sha }}"
+          
+          PR_BODY="IONOS(config): update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)
+
+          $RELEASE_URL
+
+          ---
+          Auto-generated PR from IONOS repository merge to main branch."
+          
+          # Check if a PR already exists for this branch
+          EXISTING_PR_URL=$(gh pr list \
+            --repo IONOS-Productivity/ncw-server \
+            --head "$BRANCH_NAME" \
+            --state open \
+            --json url \
+            --jq '.[0].url')
+          
+          if [ -n "$EXISTING_PR_URL" ]; then
+            PR_URL="$EXISTING_PR_URL"
+            echo "::notice::PR already exists: $PR_URL"
+          else
+            PR_URL=$(gh pr create \
+              --repo IONOS-Productivity/ncw-server \
+              --title "IONOS(config): update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)" \
+              --body "$PR_BODY" \
+              --base ionos-dev \
+              --head "$BRANCH_NAME")
+            echo "::notice::Created PR: $PR_URL"
+          fi
   log-details:
-    needs: [get-commit-info, call-submodule-update]
-    runs-on: [self-hosted]
+    needs: [create-prerelease, create-submodule-pr]
+    runs-on: [ubuntu-latest]
     if: always()
 
     steps:
-      - name: Log trigger details
+      - name: Log workflow details
         run: |
-          echo "::notice::✅ Triggered ncw-server submodule update workflow"
-          echo "::notice::📦 Submodule: IONOS"
-          echo "::notice::🔗 Commit: ${{ needs.get-commit-info.outputs.sha }}"
-          echo "::notice::💬 Message: ${{ needs.get-commit-info.outputs.message }}"
-          echo "::notice::👤 Author: ${{ needs.get-commit-info.outputs.author }}"
+          echo "::notice::✅ Created pre-release with tag ${{ needs.create-prerelease.outputs.tag_name }}"
+          echo "::notice::🔗 Release URL: ${{ needs.create-prerelease.outputs.release_url }}"
+          if [ "${{ needs.create-submodule-pr.result }}" == "success" ]; then
+            echo "::notice::📦 Submodule update PR created for ncw-server"
+          fi
+          echo "::notice::💾 Commit: ${{ needs.create-prerelease.outputs.sha }}"

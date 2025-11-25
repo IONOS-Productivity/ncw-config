@@ -6,4 +6,3 @@ updatenotification
 workflowengine
 files_antivirus
 files_external
-user_oidc

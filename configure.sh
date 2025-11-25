@@ -40,6 +40,7 @@ DISABLED_APPS=$( read_app_list "${BDIR}/disabled-apps.list" )
 #       multiple delegations are only enabled/disabled once
 readonly ADMIN_DELEGATION_MAP="
 groupfolders:OCA\\GroupFolders\\Settings\\Admin
+mail:OCA\\Mail\\Settings\\AdminSettings
 oauth2:OCA\\OAuth2\\Settings\\Admin
 password_policy:OCA\\Password_Policy\\Settings\\Settings
 settings:OCA\\Settings\\Settings\\Admin\\Security
@@ -181,14 +182,15 @@ verify_nextcloud_installation() {
 configure_theming() {
 	log_info "Configuring Nextcloud Workspace theming..."
 
-	execute_occ_command theming:config imprintUrl " "
-	execute_occ_command theming:config privacyUrl " "
+	execute_occ_command theming:config imprintUrl ""
+	execute_occ_command theming:config privacyUrl ""
 	execute_occ_command theming:config primary_color "#003D8F"
 	execute_occ_command config:app:set --value "#ffffff" -- theming background_color
 	execute_occ_command theming:config disable-user-theming yes
 	execute_occ_command theming:config disable_admin_theming yes
 	#execute_occ_command theming:config favicon "${FAVICON_DIR}/favicon.ico"
 	execute_occ_command config:app:set theming backgroundMime --value backgroundColor
+	execute_occ_command theming:config url ""
 
 	# Set homepage URL if configured
 	_ionos_homepage=$(execute_occ_command config:system:get ionos_homepage)
@@ -300,11 +302,37 @@ configure_spreed_app() {
 
 	# Configure High Performance Backend (HPB) signaling
 	log_info "Configuring talk signaling server: ${HPB_URL}"
-	execute_occ_command talk:signaling:delete 0
+
+	# Remove existing signaling servers
+	_server_list=$(execute_occ_command talk:signaling:list --output=json_pretty | jq -r '.servers[].server' 2>/dev/null | sort -u || echo "")
+	echo "_server_list: $_server_list"
+
+	if [ -z "${_server_list}" ]; then
+		log_info "No existing signaling servers found"
+	else
+		echo "${_server_list}" | while IFS= read -r _existing_server; do
+			if [ -n "${_existing_server}" ]; then
+				log_info "Removing existing signaling server: ${_existing_server}"
+				execute_occ_command talk:signaling:delete "${_existing_server}" || log_warning "Failed to delete signaling server: ${_existing_server}"
+			fi
+		done
+	fi
+
+	# Add new signaling server
 	execute_occ_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
 
 	# Configure TURN servers
-	log_info "Configuring TURN server: ${TURN_SERVER_TCP_URL}"
+	turnList=$(execute_occ_command talk:turn:list --output=json_pretty 2>/dev/null || echo "")
+	if [ -z "${turnList}" ]; then
+		log_info "Existing TURN servers found. Proceeding with deletion..."
+		echo "$turnList" | \
+		jq -r '.[] | [.schemes, .server, .protocols] | @tsv' | \
+		xargs -n 3 execute_occ_command talk:turn:delete
+	else
+		log_info "No existing TURN servers found. Nothing to delete."
+	fi
+
+	log_info "Configuring new TURN server: ${TURN_SERVER_TCP_URL}"
 	execute_occ_command talk:turn:add turn "${TURN_SERVER_TCP_URL}" tcp --secret "${TURN_SERVER_SECRET}"
 
 	if [ "${TURN_SERVER_UDP_URL}" ]; then

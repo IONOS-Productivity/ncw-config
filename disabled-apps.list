@@ -5,3 +5,5 @@
 
 workflowengine
 
+# we removed the fulltextsearch app and its dependencies
+user_oidc
