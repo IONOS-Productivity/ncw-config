@@ -5,13 +5,14 @@
 set -euo pipefail
 
 # This script validates external apps and suggests proper categorization
-# Arguments: FULL_BUILD_APPS COMPOSER_ONLY_APPS COMPOSER_NO_SCRIPTS_APPS NOTHING_TO_BUILD_APPS SPECIAL_BUILD_APPS
+# Arguments: FULL_BUILD_APPS COMPOSER_ONLY_APPS COMPOSER_NO_SCRIPTS_APPS COMPOSER_NO_SCRIPTS_WITH_NPM_APPS NOTHING_TO_BUILD_APPS SPECIAL_BUILD_APPS
 
 FULL_BUILD_APPS="$1"
 COMPOSER_ONLY_APPS="$2"
 COMPOSER_NO_SCRIPTS_APPS="$3"
-NOTHING_TO_BUILD_APPS="$4"
-SPECIAL_BUILD_APPS="$5"
+COMPOSER_NO_SCRIPTS_WITH_NPM_APPS="$4"
+NOTHING_TO_BUILD_APPS="$5"
+SPECIAL_BUILD_APPS="$6"
 
 echo "[i] Analyzing external apps to suggest proper build configuration..."
 echo "[i] Checking all apps in apps-external directory..."
@@ -79,7 +80,7 @@ fi
 echo ""
 echo "[i] Checking configured apps for missing submodules..."
 
-for app in $FULL_BUILD_APPS $COMPOSER_ONLY_APPS $COMPOSER_NO_SCRIPTS_APPS $NOTHING_TO_BUILD_APPS $SPECIAL_BUILD_APPS; do
+for app in $FULL_BUILD_APPS $COMPOSER_ONLY_APPS $COMPOSER_NO_SCRIPTS_APPS $COMPOSER_NO_SCRIPTS_WITH_NPM_APPS $NOTHING_TO_BUILD_APPS $SPECIAL_BUILD_APPS; do
 		if [ ! -d "apps-external/$app" ]; then
 				echo "  ❌ ERROR: App $app is configured but directory does not exist"
 				validation_failed=1
@@ -164,25 +165,35 @@ for app in $all_apps; do
 						done
 				fi
 
-				if [ $is_configured -eq 0 ]; then
-						for composer_no_scripts_app in $COMPOSER_NO_SCRIPTS_APPS; do
-								if [ "$app" = "$composer_no_scripts_app" ]; then
-										current_config="COMPOSER_NO_SCRIPTS_APPS"
-										is_configured=1
-										break
-								fi
-						done
-				fi
+			if [ $is_configured -eq 0 ]; then
+					for composer_no_scripts_app in $COMPOSER_NO_SCRIPTS_APPS; do
+							if [ "$app" = "$composer_no_scripts_app" ]; then
+									current_config="COMPOSER_NO_SCRIPTS_APPS"
+									is_configured=1
+									break
+							fi
+					done
+			fi
 
-				if [ $is_configured -eq 0 ]; then
-						for nothing_app in $NOTHING_TO_BUILD_APPS; do
-								if [ "$app" = "$nothing_app" ]; then
-										current_config="NOTHING_TO_BUILD_APPS"
-										is_configured=1
-										break
-								fi
-						done
-				fi
+			if [ $is_configured -eq 0 ]; then
+					for composer_no_scripts_with_npm_app in $COMPOSER_NO_SCRIPTS_WITH_NPM_APPS; do
+							if [ "$app" = "$composer_no_scripts_with_npm_app" ]; then
+									current_config="COMPOSER_NO_SCRIPTS_WITH_NPM_APPS"
+									is_configured=1
+									break
+							fi
+					done
+			fi
+
+			if [ $is_configured -eq 0 ]; then
+					for nothing_app in $NOTHING_TO_BUILD_APPS; do
+							if [ "$app" = "$nothing_app" ]; then
+									current_config="NOTHING_TO_BUILD_APPS"
+									is_configured=1
+									break
+							fi
+					done
+			fi
 
 				# Check for special apps with dedicated targets
 				if [ $is_configured -eq 0 ]; then
@@ -208,54 +219,65 @@ for app in $all_apps; do
 				reasoning=""
 				category_recommendation=""
 
-				if [ $has_composer -eq 0 ]; then
-						recommendation="⚠️  ERROR"
-						reasoning="No composer.json found - all apps must have composer.json"
-						category_recommendation="FIX REQUIRED"
-						validation_failed=1
-						error_app_list="$error_app_list $app"
-				elif [ $needs_no_scripts -eq 1 ]; then
-						# If app needs --no-scripts, recommend COMPOSER_NO_SCRIPTS_APPS regardless of other factors
-						recommendation="✅ COMPOSER_NO_SCRIPTS_APPS"
-						category_recommendation="COMPOSER_NO_SCRIPTS_APPS"
-						reasoning="Has @composer bin command but bamarni plugin only in require-dev - needs --no-scripts flag"
-				elif [ $has_composer -eq 1 ] && [ $has_package -eq 0 ]; then
-						recommendation="✅ COMPOSER_ONLY_APPS"
-						category_recommendation="COMPOSER_ONLY_APPS"
-						reasoning="Has composer.json but no package.json - PHP-only app"
-				elif [ $has_composer -eq 1 ] && [ $has_package -eq 1 ]; then
-						if [ $has_build_script -eq 1 ]; then
-								recommendation="✅ FULL_BUILD_APPS"
-								category_recommendation="FULL_BUILD_APPS"
-								reasoning="Has composer.json + package.json + build script - requires full build pipeline"
-						else
-								recommendation="✅ COMPOSER_ONLY_APPS"
-								category_recommendation="COMPOSER_ONLY_APPS"
-								reasoning="Has package.json but no build script - likely dev dependencies only, treat as PHP-only"
-						fi
-				fi
+			if [ $has_composer -eq 0 ]; then
+					recommendation="⚠️  ERROR"
+					reasoning="No composer.json found - all apps must have composer.json"
+					category_recommendation="FIX REQUIRED"
+					validation_failed=1
+					error_app_list="$error_app_list $app"
+			elif [ $needs_no_scripts -eq 1 ]; then
+					# If app needs --no-scripts, check if it also needs npm build
+					if [ $has_package -eq 1 ] && [ $has_build_script -eq 1 ]; then
+							recommendation="✅ COMPOSER_NO_SCRIPTS_WITH_NPM_APPS"
+							category_recommendation="COMPOSER_NO_SCRIPTS_WITH_NPM_APPS"
+							reasoning="Has @composer bin command but bamarni plugin only in require-dev + needs npm build"
+					else
+							recommendation="✅ COMPOSER_NO_SCRIPTS_APPS"
+							category_recommendation="COMPOSER_NO_SCRIPTS_APPS"
+							reasoning="Has @composer bin command but bamarni plugin only in require-dev - needs --no-scripts flag"
+					fi
+			elif [ $has_composer -eq 1 ] && [ $has_package -eq 0 ]; then
+					recommendation="✅ COMPOSER_ONLY_APPS"
+					category_recommendation="COMPOSER_ONLY_APPS"
+					reasoning="Has composer.json but no package.json - PHP-only app"
+			elif [ $has_composer -eq 1 ] && [ $has_package -eq 1 ]; then
+					if [ $has_build_script -eq 1 ]; then
+							recommendation="✅ FULL_BUILD_APPS"
+							category_recommendation="FULL_BUILD_APPS"
+							reasoning="Has composer.json + package.json + build script - requires full build pipeline"
+					else
+							recommendation="✅ COMPOSER_ONLY_APPS"
+							category_recommendation="COMPOSER_ONLY_APPS"
+							reasoning="Has package.json but no build script - likely dev dependencies only, treat as PHP-only"
+					fi
+			fi
 
 				echo "    Recommended Category: $recommendation"
 				echo "    Reasoning: $reasoning"
 
-				# Check if current config matches recommendation
-				config_correct=0
-				if [ "$current_config" = "FULL_BUILD_APPS" ] && [ "$category_recommendation" = "FULL_BUILD_APPS" ]; then
-						config_correct=1
-				elif [ "$current_config" = "COMPOSER_ONLY_APPS" ] && [ "$category_recommendation" = "COMPOSER_ONLY_APPS" ]; then
-						config_correct=1
-				elif [ "$current_config" = "COMPOSER_NO_SCRIPTS_APPS" ] && [ "$category_recommendation" = "COMPOSER_NO_SCRIPTS_APPS" ]; then
-						config_correct=1
-				elif [ "$current_config" = "COMPOSER_NO_SCRIPTS_APPS" ]; then
-						# COMPOSER_NO_SCRIPTS_APPS are always considered correctly configured (special case for composer script issues)
-						config_correct=1
-				elif [ "$current_config" = "NOTHING_TO_BUILD_APPS" ]; then
-						# NOTHING_TO_BUILD_APPS are always considered correctly configured
-						config_correct=1
-				elif echo "$current_config" | grep -q "SPECIAL"; then
-						# Special apps with dedicated targets are always considered correctly configured
-						config_correct=1
-				fi
+			# Check if current config matches recommendation
+			config_correct=0
+			if [ "$current_config" = "FULL_BUILD_APPS" ] && [ "$category_recommendation" = "FULL_BUILD_APPS" ]; then
+					config_correct=1
+			elif [ "$current_config" = "COMPOSER_ONLY_APPS" ] && [ "$category_recommendation" = "COMPOSER_ONLY_APPS" ]; then
+					config_correct=1
+			elif [ "$current_config" = "COMPOSER_NO_SCRIPTS_APPS" ] && [ "$category_recommendation" = "COMPOSER_NO_SCRIPTS_APPS" ]; then
+					config_correct=1
+			elif [ "$current_config" = "COMPOSER_NO_SCRIPTS_WITH_NPM_APPS" ] && [ "$category_recommendation" = "COMPOSER_NO_SCRIPTS_WITH_NPM_APPS" ]; then
+					config_correct=1
+			elif [ "$current_config" = "COMPOSER_NO_SCRIPTS_APPS" ]; then
+					# COMPOSER_NO_SCRIPTS_APPS are always considered correctly configured (special case for composer script issues)
+					config_correct=1
+			elif [ "$current_config" = "COMPOSER_NO_SCRIPTS_WITH_NPM_APPS" ]; then
+					# COMPOSER_NO_SCRIPTS_WITH_NPM_APPS are always considered correctly configured
+					config_correct=1
+			elif [ "$current_config" = "NOTHING_TO_BUILD_APPS" ]; then
+					# NOTHING_TO_BUILD_APPS are always considered correctly configured
+					config_correct=1
+			elif echo "$current_config" | grep -q "SPECIAL"; then
+					# Special apps with dedicated targets are always considered correctly configured
+					config_correct=1
+			fi
 
 				if [ $is_configured -eq 0 ]; then
 						echo "    🚨 ACTION REQUIRED: Add to Makefile"
@@ -317,31 +339,37 @@ else
 				echo "   - Add missing apps as git submodules if they should exist"
 		fi
 		if [ $unconfigured_apps -gt 0 ]; then
-				echo "3. Review apps marked as ACTION REQUIRED:$unconfigured_app_list"
-				echo "   Add these unconfigured apps to appropriate categories in the Makefile:"
-				echo ""
-				echo "   For FULL_BUILD_APPS (apps with composer + npm + build script):"
-				echo "   Add to line 29: FULL_BUILD_APPS = \\"
-				echo "        existing_app \\"
-				echo "        your_new_app \\"
-				echo "        another_app"
-				echo ""
-				echo "   For COMPOSER_ONLY_APPS (PHP-only apps):"
-				echo "   Add to line 53: COMPOSER_ONLY_APPS = \\"
-				echo "        existing_app \\"
-				echo "        your_new_app \\"
-				echo "        another_app"
-				echo ""
-				echo "   For COMPOSER_NO_SCRIPTS_APPS (apps with composer scripts issues):"
-				echo "   Add to line 60: COMPOSER_NO_SCRIPTS_APPS = \\"
-				echo "        existing_app \\"
-				echo "        your_new_app"
-				echo "   (Use this for apps with @composer bin commands but bamarni plugin only in require-dev)"
-				echo ""
-				echo "   For NOTHING_TO_BUILD_APPS (no build steps needed):"
-				echo "   Add to line 66: NOTHING_TO_BUILD_APPS = \\"
-				echo "        existing_app \\"
-				echo "        your_new_app"
+			echo "3. Review apps marked as ACTION REQUIRED:$unconfigured_app_list"
+			echo "   Add these unconfigured apps to appropriate categories in the Makefile:"
+			echo ""
+			echo "   For FULL_BUILD_APPS (apps with composer + npm + build script):"
+			echo "   Add to line 29: FULL_BUILD_APPS = \\"
+			echo "        existing_app \\"
+			echo "        your_new_app \\"
+			echo "        another_app"
+			echo ""
+			echo "   For COMPOSER_ONLY_APPS (PHP-only apps):"
+			echo "   Add to line 53: COMPOSER_ONLY_APPS = \\"
+			echo "        existing_app \\"
+			echo "        your_new_app \\"
+			echo "        another_app"
+			echo ""
+			echo "   For COMPOSER_NO_SCRIPTS_APPS (apps with composer scripts issues, no npm):"
+			echo "   Add to line 60: COMPOSER_NO_SCRIPTS_APPS = \\"
+			echo "        existing_app \\"
+			echo "        your_new_app"
+			echo "   (Use this for apps with @composer bin commands but bamarni plugin only in require-dev)"
+			echo ""
+			echo "   For COMPOSER_NO_SCRIPTS_WITH_NPM_APPS (apps with composer scripts issues + npm build):"
+			echo "   Add to line 67: COMPOSER_NO_SCRIPTS_WITH_NPM_APPS = \\"
+			echo "        existing_app \\"
+			echo "        your_new_app"
+			echo "   (Use this for apps with @composer bin/bamarni issues that also need npm build)"
+			echo ""
+			echo "   For NOTHING_TO_BUILD_APPS (no build steps needed):"
+			echo "   Add to line 73: NOTHING_TO_BUILD_APPS = \\"
+			echo "        existing_app \\"
+			echo "        your_new_app"
 		fi
 		if [ -n "$error_app_list" ]; then
 				echo "4. Fix apps with errors:$error_app_list"
