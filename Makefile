@@ -216,10 +216,10 @@ build_core_app_theming: .precheck ## Build theming app
 	@echo "[✓] theming app built successfully"
 
 build_ncw: .precheck build_core_app_theming ## Build Nextcloud Workspace
-#	composer install --no-dev -o && \
-#	npm ci && \
-#	NODE_OPTIONS="--max-old-space-size=4096" npm run build
-	@echo "[i] No need to re-build right now. Will use version from repository"
+	composer install --no-dev -o && \
+	npm ci && \
+	NODE_OPTIONS="--max-old-space-size=4096" npm run build
+	@echo "[✓] Nextcloud core built successfully"
 
 # Dynamic rules for full build apps
 $(FULL_BUILD_TARGETS): build_%_app:
