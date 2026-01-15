@@ -645,6 +645,7 @@ configure_apps() {
 	enable_app groupfolders "Group Folders"
 	enable_app assistant "Assistant"
 	enable_app integration_openai "OpenAI Integration"
+	enable_app ncw_tools "Task Processing"
 
 	# Configure admin features
 	configure_admin_delegation
