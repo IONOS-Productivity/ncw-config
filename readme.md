@@ -112,3 +112,45 @@ occ app:disable dashboard
 
 **Currently Disabled Apps:**
 - `workflowengine` - Workflow automation engine
+### always-enabled-apps.list
+
+This file contains apps that must **stay enabled** and **cannot be disabled** by administrators.
+
+**Purpose:**
+- Enforces critical apps remain enabled (security, IONOS customizations, core functionality)
+- Prevents disabling via OCC or UI by adding apps to `alwaysEnabled` array in `shipped.json`
+
+**How it Works:**
+1. `enforce-always-enabled-apps.sh` runs at startup/after updates
+2. Adds apps to `core/shipped.json`'s `alwaysEnabled` array
+3. Enables each app via OCC
+4. Nextcloud's AppManager prevents disabling apps in `alwaysEnabled`
+
+**Usage:**
+```bash
+# Manual execution
+./IONOS/enforce-always-enabled-apps.sh
+
+# Automatically via configure.sh
+./IONOS/configure.sh
+```
+
+**Kubernetes Integration:**
+Add as init container:
+```yaml
+initContainers:
+  - name: enforce-apps
+    command: ["/bin/sh", "-c", "./IONOS/enforce-always-enabled-apps.sh"]
+```
+
+**Verification:**
+```bash
+# Try to disable (should fail)
+php occ app:disable ncw_apps_menu
+# Expected: Exception: "ncw_apps_menu can't be disabled."
+```
+
+**Currently Always-Enabled Apps:**
+- `files_trashbin`, `user_status`, `webhook_listeners` - Core apps
+- `ncw_apps_menu`, `ncw_mailtemplate` - IONOS customizations
+- `notify_push`, `password_policy`, `text`, `twofactor_totp` - Essential features
