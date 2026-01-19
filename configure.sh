@@ -694,6 +694,36 @@ parse_arguments() {
 	done
 }
 
+# Enforce always-enabled apps at runtime
+# This ensures specified apps cannot be disabled and remain enabled even after updates
+# Usage: enforce_always_enabled_apps
+enforce_always_enabled_apps() {
+	log_info "Enforcing always-enabled apps..."
+
+	_enforcement_script="${SCRIPT_DIR}/enforce-always-enabled-apps.sh"
+
+	if [ ! -f "${_enforcement_script}" ]; then
+		log_warning "Always-enabled apps enforcement script not found at ${_enforcement_script}"
+		log_info "Skipping always-enabled apps enforcement"
+		return 0
+	fi
+
+	if [ ! -x "${_enforcement_script}" ]; then
+		log_warning "Always-enabled apps enforcement script is not executable"
+		log_info "Making it executable..."
+		chmod +x "${_enforcement_script}"
+	fi
+
+	# Execute the enforcement script
+	if ! sh "${_enforcement_script}"; then
+		log_warning "Always-enabled apps enforcement failed (non-fatal)"
+		return 1
+	fi
+
+	log_success "Always-enabled apps enforcement completed"
+	return 0
+}
+
 # Main function to orchestrate Nextcloud Workspace configuration
 # Usage: main [args...]
 main() {
@@ -710,6 +740,7 @@ main() {
 	configure_theming
 	disable_configured_apps
 	configure_apps
+	enforce_always_enabled_apps
 	configure_ionos_mailconfig_api
 
 	log_success "Nextcloud Workspace configuration completed successfully!"
