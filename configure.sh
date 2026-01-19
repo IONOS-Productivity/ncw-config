@@ -508,6 +508,14 @@ configure_ionos_ai_model_hub() {
 	execute_occ_command config:app:set --value "${IONOSAI_URL}" --type string integration_openai url
 	execute_occ_command config:app:set --value "${IONOSAI_TOKEN}" --sensitive --type string integration_openai api_key
 
+	_max_tokens="${IONOSAI_MAX_TOKENS:-1000}"
+	execute_occ_command config:app:set --value "${_max_tokens}" --type integer integration_openai max_tokens
+
+	# Set use_max_completion_tokens_param (1=enabled, 0=disabled)
+	# Default is 0 for non-OpenAI services
+	_use_max_completion_tokens_param="${IONOSAI_USE_MAX_COMPLETION_TOKENS_PARAM:-0}"
+	execute_occ_command config:app:set --value "${_use_max_completion_tokens_param}" --type string integration_openai use_max_completion_tokens_param
+
 	# Configure default text-to-text model
 	_text_model="${IONOSAI_TEXT_MODEL:-openai/gpt-oss-120b}"
 	execute_occ_command config:app:set --value "${_text_model}" --type string integration_openai default_completion_model_id
