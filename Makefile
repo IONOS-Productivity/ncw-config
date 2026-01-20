@@ -271,6 +271,7 @@ add_config_partials: .precheck ## Copy custom config files to Nextcloud config
 
 patch_shipped_json: .precheck ## Patch shipped.json to make core apps disableable
 	@echo "[i] Patching shipped.json..."
+	@echo "[i] Making core apps disableable and enforcing always-enabled apps..."
 	IONOS/apps-disable.sh
 
 version.json: .precheck ## Generate version file
