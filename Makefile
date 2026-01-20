@@ -76,6 +76,12 @@ NOTHING_TO_BUILD_APPS = \
 SPECIAL_BUILD_APPS = \
 	notify_push
 
+# App folders to add to shipped.json (makes apps non-removable)
+# Add additional app folders here to include them in the shipped apps list
+APP_FOLDERS_TO_SHIP = \
+	apps-external
+	# apps-custom
+
 # Apps to be removed from final package (read from removed-apps.txt)
 REMOVE_UNWANTED_APPS = $(shell [ -f IONOS/removed-apps.txt ] && sed '/^#/d;/^$$/d;s/^/apps\//' IONOS/removed-apps.txt || echo "")
 
@@ -269,8 +275,12 @@ add_config_partials: .precheck ## Copy custom config files to Nextcloud config
 	cp IONOS/configs/*.config.php config/
 	@echo "[✓] Config files copied successfully"
 
-patch_shipped_json: .precheck ## Patch shipped.json to make core apps disableable
+patch_shipped_json: .precheck ## Patch shipped.json
 	@echo "[i] Patching shipped.json..."
+
+	@echo "[i] Making external apps non-removable (hiding remove buttons)..."
+	IONOS/scripts/patch_shipped_json_add_shipped_apps.sh $(APP_FOLDERS_TO_SHIP)
+
 	@echo "[i] Making core apps disableable and enforcing always-enabled apps..."
 	IONOS/apps-disable.sh
 
