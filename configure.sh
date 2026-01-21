@@ -135,6 +135,60 @@ validate_env_vars() {
 	return 0
 }
 
+# Set app config value with automatic type checking and correction
+# Usage: set_app_config_typed <app> <key> <value> <expected_type> [additional_flags...]
+# Expected types: string, integer, float, boolean, array
+# This function checks if the key exists with wrong type and deletes it before setting
+# Additional flags like --sensitive can be passed as extra arguments
+set_app_config_typed() {
+	_app="${1}"
+	_key="${2}"
+	_value="${3}"
+	_expected_type="${4}"
+	shift 4  # Remove first 4 args, leaving any additional flags
+	
+	# Get current config value with type information from JSON output
+	_current_json=$(php occ config:list "${_app}" --private 2>/dev/null)
+	_current_value=$(echo "${_current_json}" | jq -r ".apps.\"${_app}\".\"${_key}\" // empty" 2>/dev/null)
+	
+	if [ -n "${_current_value}" ]; then
+		# Determine the JSON type of the current value using jq
+		_current_type=$(echo "${_current_json}" | jq -r ".apps.\"${_app}\".\"${_key}\" | type" 2>/dev/null)
+		
+		# Compare the jq-reported type with the expected type
+		case "${_expected_type}" in
+			string)
+				if [ "${_current_type}" != "string" ]; then
+					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
+					execute_occ_command config:app:delete "${_app}" "${_key}"
+				fi
+				;;
+			array)
+				if [ "${_current_type}" != "array" ]; then
+					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
+					execute_occ_command config:app:delete "${_app}" "${_key}"
+				fi
+				;;
+			integer|float)
+				# jq reports both integers and floats as "number"
+				if [ "${_current_type}" != "number" ]; then
+					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
+					execute_occ_command config:app:delete "${_app}" "${_key}"
+				fi
+				;;
+			boolean)
+				if [ "${_current_type}" != "boolean" ]; then
+					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
+					execute_occ_command config:app:delete "${_app}" "${_key}"
+				fi
+				;;
+		esac
+	fi
+	
+	# Set with correct type (pass through any additional flags like --sensitive)
+	execute_occ_command config:app:set --value "${_value}" --type "${_expected_type}" "$@" "${_app}" "${_key}"
+}
+
 # Enable a Nextcloud app with logging
 # Usage: enable_app <app_name> [display_name]
 enable_app() {
@@ -508,13 +562,14 @@ configure_ionos_ai_model_hub() {
 	execute_occ_command config:app:set --value "${IONOSAI_URL}" --type string integration_openai url
 	execute_occ_command config:app:set --value "${IONOSAI_TOKEN}" --sensitive --type string integration_openai api_key
 
+	# Configure max_tokens (app stores as string internally)
 	_max_tokens="${IONOSAI_MAX_TOKENS:-1000}"
-	execute_occ_command config:app:set --value "${_max_tokens}" --type integer integration_openai max_tokens
+	set_app_config_typed integration_openai max_tokens "${_max_tokens}" string
 
 	# Set use_max_completion_tokens_param (1=enabled, 0=disabled)
-	# Default is 0 for non-OpenAI services
+	# Default is 0 for non-OpenAI services (app stores as string '1' or '0')
 	_use_max_completion_tokens_param="${IONOSAI_USE_MAX_COMPLETION_TOKENS_PARAM:-0}"
-	execute_occ_command config:app:set --value "${_use_max_completion_tokens_param}" --type string integration_openai use_max_completion_tokens_param
+	set_app_config_typed integration_openai use_max_completion_tokens_param "${_use_max_completion_tokens_param}" string
 
 	# Configure default text-to-text model
 	_text_model="${IONOSAI_TEXT_MODEL:-openai/gpt-oss-120b}"
