@@ -152,21 +152,32 @@ set_app_config_typed() {
 	_current_value=$(echo "${_current_json}" | jq -r ".apps.\"${_app}\".\"${_key}\" // empty" 2>/dev/null)
 	
 	if [ -n "${_current_value}" ]; then
-		# Check if value has quotes (string) or not (integer/boolean/float) in raw JSON
-		_raw_value=$(echo "${_current_json}" | jq ".apps.\"${_app}\".\"${_key}\"" 2>/dev/null)
+		# Determine the JSON type of the current value using jq
+		_current_type=$(echo "${_current_json}" | jq -r ".apps.\"${_app}\".\"${_key}\" | type" 2>/dev/null)
 		
-		# Check if value has quotes (string) or not (integer/boolean/float)
+		# Compare the jq-reported type with the expected type
 		case "${_expected_type}" in
-			string|array)
-				# String/array should have quotes in JSON output: "key": "value"
-				if ! echo "${_raw_value}" | grep -q '^"'; then
+			string)
+				if [ "${_current_type}" != "string" ]; then
 					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
 					execute_occ_command config:app:delete "${_app}" "${_key}"
 				fi
 				;;
-			integer|float|boolean)
-				# Integer/float/boolean should NOT have quotes: "key": 1000
-				if echo "${_raw_value}" | grep -q '^"'; then
+			array)
+				if [ "${_current_type}" != "array" ]; then
+					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
+					execute_occ_command config:app:delete "${_app}" "${_key}"
+				fi
+				;;
+			integer|float)
+				# jq reports both integers and floats as "number"
+				if [ "${_current_type}" != "number" ]; then
+					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
+					execute_occ_command config:app:delete "${_app}" "${_key}"
+				fi
+				;;
+			boolean)
+				if [ "${_current_type}" != "boolean" ]; then
 					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
 					execute_occ_command config:app:delete "${_app}" "${_key}"
 				fi
