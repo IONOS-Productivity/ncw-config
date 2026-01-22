@@ -35,6 +35,7 @@ read_app_list() {
 
 DISABLED_APPS=$( read_app_list "${BDIR}/disabled-apps.list" )
 ENABLED_CORE_APPS=$( read_app_list "${BDIR}/enabled-core-apps.list" )
+ALWAYS_ENABLED_APPS=$( read_app_list "${BDIR}/always-enabled-apps.list" )
 REMOVED_APPS=$( read_app_list "${BDIR}/removed-apps.txt" )
 
 execute_occ_command() {
@@ -153,6 +154,24 @@ ensure_app_states() {
 	# Ensure core apps are enabled
 	for app in ${ENABLED_CORE_APPS}; do
 		printf "${_color_blue}[i] Checking core app to enable: %s${_color_reset}" "${app}"
+		if echo "${DISABLED_APPS}" | grep -q -w "${app}"; then
+			printf " - is in DISABLED_APPS list - skipping\n"
+			continue
+		fi
+
+		if echo "${disabled_apps}" | grep -q -w "${app}"; then
+			printf " - currently disabled - enabling\n"
+			if enable_app "${app}"; then
+				_enabled_apps_count=$(( _enabled_apps_count + 1 ))
+			fi
+		else
+			printf " - already enabled - skip\n"
+		fi
+	done
+
+	# Ensure always-enabled apps are enabled (typically external apps)
+	for app in ${ALWAYS_ENABLED_APPS}; do
+		printf "${_color_blue}[i] Checking always-enabled app to enable: %s${_color_reset}" "${app}"
 		if echo "${DISABLED_APPS}" | grep -q -w "${app}"; then
 			printf " - is in DISABLED_APPS list - skipping\n"
 			continue

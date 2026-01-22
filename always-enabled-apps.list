@@ -35,6 +35,8 @@ user_status
 webhook_listeners
 
 # External apps (apps-external/)
+# These will be added to shippedApps, defaultEnabled, and alwaysEnabled arrays
+# to hide them from app settings and prevent users from disabling them
 ncw_apps_menu
 ncw_mailtemplate
 notify_push

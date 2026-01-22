@@ -566,6 +566,26 @@ configure_ionos_ai_model_hub() {
 	log_info "IONOS AI Model Hub configuration completed successfully"
 }
 
+# Update shipped.json to lock always-enabled apps
+# Usage: update_shipped_json
+update_shipped_json() {
+	log_info "Updating shipped.json to lock always-enabled apps..."
+
+	_update_script="${SCRIPT_DIR}/update-shipped-json.sh"
+
+	if [ ! -x "${_update_script}" ]; then
+		log_warning "update-shipped-json.sh not found or not executable, skipping"
+		return 0
+	fi
+
+	if ! "${_update_script}"; then
+		log_error "Failed to update shipped.json"
+		return 1
+	fi
+
+	log_info "shipped.json updated successfully"
+}
+
 #===============================================================================
 # App Management Functions
 #===============================================================================
@@ -711,6 +731,7 @@ main() {
 	disable_configured_apps
 	configure_apps
 	configure_ionos_mailconfig_api
+	update_shipped_json
 
 	log_success "Nextcloud Workspace configuration completed successfully!"
 }

@@ -44,9 +44,10 @@ set -e
 #   - disabled-apps.list: List of app names to disable (one per line)
 #     * Supports comments (lines starting with #)
 #     * Ignores empty lines and whitespace
-#   - always-enabled-apps.list: List of app names to force enable (one per line)
-#     * Same format as disabled-apps.list
-#     * Apps are added to alwaysEnabled array to prevent disabling
+#
+#   ⚠️  NOTE: always-enabled-apps.list is NO LONGER processed by this script.
+#   It is now handled at runtime by update-shipped-json.sh to avoid errors
+#   when external apps aren't yet installed during fresh installations.
 #
 # OUTPUT:
 #   - Modifies ../core/shipped.json in place
@@ -64,22 +65,18 @@ set -e
 #   # Optional apps
 #   recommendations
 #
-# EXAMPLE always-enabled-apps.list:
-#   # Security apps that must remain enabled
-#   twofactor_totp
-#   encryption
-#
 # NOTES:
 #   - The 'alwaysEnabled' attribute is the critical one - it determines which
 #     apps cannot be disabled by administrators
 #   - The 'defaultEnabled' attribute only affects new installations, not updates
 #   - All changes are validated before and after processing
 #   - Apps in always-enabled-apps.list are only added if not already present
-#
-# AUTHOR: IONOS Nextcloud Customization Team
-# LICENSE: See LICENSES/ directory
-#
-################################################################################
+#   - ⚠️is script ONLY processes disabled-apps.list at build time
+#   - Removes apps from both 'defaultEnabled' (prevents auto-enable on install)
+#     and 'alwaysEnabled' (allows manual enabling if desired)
+#   - All changes are validated before and after processing
+#   - ⚠️  IMPORTANT: This script runs during Docker image build, NOT at runtime
+#   - For always-enabled apps, use update-shipped-json.sh at runtime instea###########################
 
 # Configuration: Base directory and file paths
 BDIR="$(dirname "${0}")"
@@ -156,12 +153,16 @@ unship_app() {
 	log_info "Unshipped app '${app}'"
 }
 
-# Add an app to the alwaysEnabled array in shipped.json
-# Adds the specified app to the alwaysEnabled array if it's not already present
-# in the shipped.json file using jq for safe JSON manipulation
+# Add an app to the shippedApps, defaultEnabled, and alwaysEnabled arrays in shipped.json
+# Adds the specified app to all three arrays if not already present in the shipped.json file
+# using jq for safe JSON manipulation.
+# This ensures that:
+#   - The app is marked as shipped (shippedApps) - hides it from app settings UI
+#   - The app is enabled by default on fresh installations (defaultEnabled)
+#   - The app cannot be disabled by administrators (alwaysEnabled)
 # Usage: ship_app <app_name>
 # Arguments:
-#   $1 - Name of the app to add to the alwaysEnabled array
+#   $1 - Name of the app to add to all three arrays
 # Side Effects:
 #   - Creates a temporary file (shipped.json.tmp)
 #   - Modifies shipped.json in place
@@ -171,17 +172,19 @@ ship_app() {
 	app="${1}"
 	temp_file="${SHIPPED_JSON}.tmp"
 
-	# Use jq to safely add the app to alwaysEnabled array if not already present
-	# The filter checks if the app is already in the array before adding
+	# Use jq to safely add the app to shippedApps, defaultEnabled, and alwaysEnabled arrays
+	# The filter checks if the app is already in each array before adding
 	if ! jq --arg app "${app}" \
-		'if (.alwaysEnabled | index($app)) then . else .alwaysEnabled += [$app] end' \
+		'if (.shippedApps | index($app)) then . else .shippedApps += [$app] end |
+		 if (.defaultEnabled | index($app)) then . else .defaultEnabled += [$app] end |
+		 if (.alwaysEnabled | index($app)) then . else .alwaysEnabled += [$app] end' \
 		"${SHIPPED_JSON}" > "${temp_file}"; then
 		log_fatal "Failed to process ${app} with jq"
 	fi
 
 	# Atomically replace the original file
 	mv "${temp_file}" "${SHIPPED_JSON}"
-	log_info "Shipped app '${app}' as always enabled"
+	log_info "Shipped app '${app}' as shipped, default enabled, and always enabled"
 }
 
 # Validate that shipped.json is valid JSON
@@ -221,8 +224,10 @@ main() {
 	# Load disabled apps list
 	DISABLED_APPS=$(read_app_list "${DISABLED_APPS_FILE}")
 
-	# Load always-enabled apps list
-	ALWAYS_ENABLED_APPS=$(read_app_list "${ALWAYS_ENABLED_APPS_FILE}")
+	# NOTE: always-enabled-apps.list is NOT processed during build anymore
+	# External apps should be added to shipped.json at runtime via update-shipped-json.sh
+	# This prevents errors when apps aren't yet enabled during installation
+	ALWAYS_ENABLED_APPS=""
 
 	# Process disabled apps - remove from shipped list
 	disabled_count=0
