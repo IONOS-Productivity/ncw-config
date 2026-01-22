@@ -39,6 +39,7 @@ webhook_listeners
 # to hide them from app settings and prevent users from disabling them
 ncw_apps_menu
 ncw_mailtemplate
+ncw_tools
 notify_push
 password_policy
 text
