@@ -73,7 +73,7 @@ add_app_to_shipped_json() {
 	# Note: defaultEnabled is not updated as it only affects fresh installations
 	if ! jq --arg app "${_app}" \
 		'if (.shippedApps | index($app)) then . else .shippedApps += [$app] end |
-		 if (.alwaysEnabled | index($app)) then . else .alwaysEnabled += [$app] end' \
+		if (.alwaysEnabled | index($app)) then . else .alwaysEnabled += [$app] end' \
 		"${SHIPPED_JSON}" > "${_temp_file}"; then
 		log_fatal "Failed to process ${_app} with jq"
 	fi

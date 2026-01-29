@@ -176,8 +176,8 @@ ship_app() {
 	# The filter checks if the app is already in each array before adding
 	if ! jq --arg app "${app}" \
 		'if (.shippedApps | index($app)) then . else .shippedApps += [$app] end |
-		 if (.defaultEnabled | index($app)) then . else .defaultEnabled += [$app] end |
-		 if (.alwaysEnabled | index($app)) then . else .alwaysEnabled += [$app] end' \
+		if (.defaultEnabled | index($app)) then . else .defaultEnabled += [$app] end |
+		if (.alwaysEnabled | index($app)) then . else .alwaysEnabled += [$app] end' \
 		"${SHIPPED_JSON}" > "${temp_file}"; then
 		log_fatal "Failed to process ${app} with jq"
 	fi
