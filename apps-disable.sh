@@ -71,12 +71,12 @@ set -e
 #   - The 'defaultEnabled' attribute only affects new installations, not updates
 #   - All changes are validated before and after processing
 #   - Apps in always-enabled-apps.list are only added if not already present
-#   - ⚠️is script ONLY processes disabled-apps.list at build time
+#   - ⚠️ This script ONLY processes disabled-apps.list at build time
 #   - Removes apps from both 'defaultEnabled' (prevents auto-enable on install)
 #     and 'alwaysEnabled' (allows manual enabling if desired)
 #   - All changes are validated before and after processing
 #   - ⚠️  IMPORTANT: This script runs during Docker image build, NOT at runtime
-#   - For always-enabled apps, use update-shipped-json.sh at runtime instea###########################
+#   - For always-enabled apps, use update-shipped-json.sh at runtime instead
 
 # Configuration: Base directory and file paths
 BDIR="$(dirname "${0}")"
@@ -184,7 +184,7 @@ ship_app() {
 
 	# Atomically replace the original file
 	mv "${temp_file}" "${SHIPPED_JSON}"
-	log_info "Shipped app '${app}' as shipped, default enabled, and always enabled"
+	log_info "Shipped app '${app}' (shipped, default enabled, and always enabled)"
 }
 
 # Validate that shipped.json is valid JSON
