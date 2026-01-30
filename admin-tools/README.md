@@ -36,6 +36,30 @@ Resend welcome email to a specific user.
 - `--dry-run`: Preview actions without executing
 - `-q, --quiet`: Suppress informational output
 
+### update-mail-accounts-on-domain-change.sh
+
+Update email addresses in Nextcloud mail app configuration when a customer's email domain changes (e.g., domain cancellation, email parking). This script updates the email address, IMAP username, and SMTP username for all matching mail accounts.
+
+```bash
+./update-mail-accounts-on-domain-change.sh <user_id> <old_email> <new_email>
+
+# Examples:
+./update-mail-accounts-on-domain-change.sh john.doe foo@example.com foo@parked-emails.com
+./update-mail-accounts-on-domain-change.sh jane.smith user@old-domain.com user@new-domain.com
+```
+
+**Arguments:**
+- `user_id`: Nextcloud user ID
+- `old_email`: Current email address configured in the mail app
+- `new_email`: New email address to update to
+
+**What it updates:**
+- Email field (display email)
+- Inbound user (IMAP username)
+- Outbound user (SMTP username)
+
+**Note:** Users may need to refresh their mail app to see the changes.
+
 
 ## Standard Interface
 
