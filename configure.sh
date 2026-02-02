@@ -139,7 +139,8 @@ validate_env_vars() {
 # Usage: set_app_config_typed <app> <key> <value> <expected_type> [additional_flags...]
 # Expected types: string, integer, float, boolean, array
 # This function checks if the key exists with wrong type and deletes it before setting
-# Additional flags like --sensitive can be passed as extra arguments
+# Additional flags like --sensitive can be passed after the first 4 required arguments
+# Usage: set_app_config_typed myapp mykey myvalue string --sensitive
 set_app_config_typed() {
 	_app="${1}"
 	_key="${2}"
@@ -148,10 +149,13 @@ set_app_config_typed() {
 	shift 4  # Remove first 4 args, leaving any additional flags
 	
 	# Get current config value with type information from JSON output
-	_current_json=$(php occ config:list "${_app}" --private 2>/dev/null)
-	_current_value=$(echo "${_current_json}" | jq -r ".apps.\"${_app}\".\"${_key}\" // empty" 2>/dev/null)
+	if ! _current_json=$(php occ config:list "${_app}" --private 2>/dev/null); then
+		echo "Error: failed to read config for app '${_app}' via 'php occ config:list'." >&2
+		return 1
+	fi
 	
-	if [ -n "${_current_value}" ]; then
+	# Check if the key exists in the JSON, regardless of its value (including "" or null)
+	if echo "${_current_json}" | jq -e ".apps.\"${_app}\" | has(\"${_key}\")" >/dev/null 2>&1; then
 		# Determine the JSON type of the current value using jq
 		_current_type=$(echo "${_current_json}" | jq -r ".apps.\"${_app}\".\"${_key}\" | type" 2>/dev/null)
 		
