@@ -37,6 +37,7 @@ webhook_listeners
 # External apps (apps-external/)
 ncw_apps_menu
 ncw_mailtemplate
+ncw_tools
 notify_push
 password_policy
 text
