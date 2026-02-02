@@ -294,6 +294,19 @@ version.json: .precheck ## Generate version file
 	jq . version.json
 
 zip_dependencies: patch_shipped_json version.json ## Zip relevant files
+	@echo "[i] Checking if .buildnumber exists..."
+	@if [ ! -f .buildnumber ]; then \
+		echo ""; \
+		echo "**********************************************************************"; \
+		echo "ERROR: .buildnumber file not found!"; \
+		echo ""; \
+		echo "The .buildnumber file must exist before creating the package."; \
+		echo "Please create it first or run the appropriate build target."; \
+		echo "**********************************************************************"; \
+		echo ""; \
+		exit 1; \
+	fi
+	@echo "[i] .buildnumber found: $$(cat .buildnumber)"
 	@echo "[i] zip relevant files to $(TARGET_PACKAGE_NAME)" && \
 	zip -r "$(TARGET_PACKAGE_NAME)" \
 		IONOS/ \
@@ -324,6 +337,7 @@ zip_dependencies: patch_shipped_json version.json ## Zip relevant files
 		version.php \
 		version.json  \
 		.htaccess \
+		.buildnumber \
 	-x "apps/theming/img/background/**" \
 	-x "apps/*/tests/**" \
 	-x "apps-*/*/.git" \
@@ -368,6 +382,7 @@ clean: ## Clean build artifacts
 	@echo "[i] Cleaning build artifacts..."
 	@rm -f $(TARGET_PACKAGE_NAME)
 	@rm -f version.json
+	@rm -f .buildnumber
 	@rm -f $(NOTIFY_PUSH_BINARY) $(NOTIFY_PUSH_BINARY).sha256
 	@echo "[✓] Clean completed"
 
