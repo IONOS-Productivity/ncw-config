@@ -159,26 +159,26 @@ set_app_config_typed() {
 		case "${_expected_type}" in
 			string)
 				if [ "${_current_type}" != "string" ]; then
-					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
+					log_info "Config key ${_key} exists with wrong type (current: ${_current_type}, expected: ${_expected_type}), deleting..."
 					execute_occ_command config:app:delete "${_app}" "${_key}"
 				fi
 				;;
 			array)
 				if [ "${_current_type}" != "array" ]; then
-					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
+					log_info "Config key ${_key} exists with wrong type (current: ${_current_type}, expected: ${_expected_type}), deleting..."
 					execute_occ_command config:app:delete "${_app}" "${_key}"
 				fi
 				;;
 			integer|float)
 				# jq reports both integers and floats as "number"
 				if [ "${_current_type}" != "number" ]; then
-					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
+					log_info "Config key ${_key} exists with wrong type (current: ${_current_type}, expected: ${_expected_type}), deleting..."
 					execute_occ_command config:app:delete "${_app}" "${_key}"
 				fi
 				;;
 			boolean)
 				if [ "${_current_type}" != "boolean" ]; then
-					log_info "Config key ${_key} exists with wrong type (current: ${_current_value}, expected: ${_expected_type}), deleting..."
+					log_info "Config key ${_key} exists with wrong type (current: ${_current_type}, expected: ${_expected_type}), deleting..."
 					execute_occ_command config:app:delete "${_app}" "${_key}"
 				fi
 				;;
