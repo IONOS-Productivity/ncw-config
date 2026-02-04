@@ -19,6 +19,7 @@
 #    - TARGET_REPO: Where the submodule lives (typically "IONOS-Productivity/ncw-server")
 #    - BASE_BRANCH: Default target branch (typically "ionos-dev")
 #    - COMMIT_PREFIX: Commit message prefix (e.g., "IONOS(config)")
+#    - MILESTONE_PREFIX: Milestone prefix pattern (e.g., "ncw" for milestones like "ncw-3")
 # 4. Ensure NCW_SERVER_PAT secret is configured in the submodule repository
 #
 name: Create pre-release and update ncw-server submodule
@@ -104,6 +105,7 @@ jobs:
       TARGET_REPO: IONOS-Productivity/ncw-server         # Target repository containing the submodule
       BASE_BRANCH: ionos-dev                             # Default base branch for PRs
       COMMIT_PREFIX: "IONOS(config)"                     # Prefix for commit messages and PR titles
+      MILESTONE_PREFIX: ncw                              # Milestone prefix (e.g., "ncw" for "ncw-3")
 
     steps:
       - name: Get milestone from merged PR
@@ -180,8 +182,9 @@ jobs:
           git fetch origin
 
           if [ -n "$MILESTONE" ]; then
-            # Check if milestone matches pattern ncw-<nnn>
-            if [[ "$MILESTONE" =~ ^ncw-[0-9]+$ ]]; then
+            # Check if milestone matches pattern <prefix>-<nnn> (e.g., ncw-3)
+            MILESTONE_PATTERN="^${{ env.MILESTONE_PREFIX }}-[0-9]+$"
+            if [[ "$MILESTONE" =~ $MILESTONE_PATTERN ]]; then
               RC_BRANCH="rc/$MILESTONE"
               echo "::notice::Checking for release candidate branch: $RC_BRANCH"
 
@@ -193,7 +196,7 @@ jobs:
                 echo "::notice::Branch $RC_BRANCH not found, using ${{ env.BASE_BRANCH }}"
               fi
             else
-              echo "::notice::Milestone '$MILESTONE' doesn't match ncw-<nnn> pattern, using ${{ env.BASE_BRANCH }}"
+              echo "::notice::Milestone '$MILESTONE' doesn't match ${{ env.MILESTONE_PREFIX }}-<nnn> pattern, using ${{ env.BASE_BRANCH }}"
             fi
           else
             echo "::notice::No milestone found, using ${{ env.BASE_BRANCH }}"
