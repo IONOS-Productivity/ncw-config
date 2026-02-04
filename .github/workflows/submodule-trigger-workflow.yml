@@ -27,7 +27,6 @@ on:
   push:
     branches:
       - main
-      - mk/tmp/main
   workflow_dispatch:
 
 permissions:
@@ -190,7 +189,7 @@ jobs:
               if git ls-remote --heads origin "$RC_BRANCH" | grep -q "$RC_BRANCH"; then
                 SELECTED_BASE_BRANCH="$RC_BRANCH"
                 echo "::notice::Using base branch: $SELECTED_BASE_BRANCH"
-                git checkout -b "temp-base" "origin/$SELECTED_BASE_BRANCH"
+                git checkout "origin/$SELECTED_BASE_BRANCH"
               else
                 echo "::notice::Branch $RC_BRANCH not found, using ${{ env.BASE_BRANCH }}"
               fi
