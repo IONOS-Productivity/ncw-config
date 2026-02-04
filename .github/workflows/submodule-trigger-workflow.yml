@@ -1,5 +1,19 @@
 # SPDX-FileCopyrightText: 2024 IONOS Productivity
 # SPDX-License-Identifier: MIT
+#
+# This workflow automates submodule updates in ncw-server when PRs are merged to main.
+#
+# To adapt for other submodules:
+# 1. Copy this workflow file to the submodule repository's .github/workflows/
+# 2. Update the 'if' condition in create-submodule-pr job
+# 3. Update the env variables in create-submodule-pr job:
+#    - SUBMODULE_NAME: Directory name in ncw-server (e.g., "IONOS")
+#    - SUBMODULE_REPO: Full repository name (e.g., "IONOS-Productivity/ncw-config")
+#    - TARGET_REPO: Where the submodule lives (typically "IONOS-Productivity/ncw-server")
+#    - BASE_BRANCH: Default target branch (typically "ionos-dev")
+#    - COMMIT_PREFIX: Commit message prefix (e.g., "IONOS(config)")
+# 4. Ensure NCW_SERVER_PAT secret is configured in the submodule repository
+#
 name: Create pre-release and update ncw-server submodule
 
 on:
@@ -74,18 +88,26 @@ jobs:
   create-submodule-pr:
     needs: create-prerelease
     runs-on: [ubuntu-latest]
+    # Update this condition to match SUBMODULE_REPO when adapting for other submodules
     if: github.repository == 'IONOS-Productivity/ncw-config'
+    env:
+      # Configuration for submodule updates - customize these values for different submodules
+      SUBMODULE_NAME: IONOS                              # Submodule directory name in ncw-server
+      SUBMODULE_REPO: IONOS-Productivity/ncw-config      # Source repository (must match 'if' condition above)
+      TARGET_REPO: IONOS-Productivity/ncw-server         # Target repository containing the submodule
+      BASE_BRANCH: ionos-dev                             # Default base branch for PRs
+      COMMIT_PREFIX: "IONOS(config)"                     # Prefix for commit messages and PR titles
 
     steps:
       - name: Checkout ncw-server repository
         uses: actions/checkout@v5
         with:
-          repository: IONOS-Productivity/ncw-server
+          repository: ${{ env.TARGET_REPO }}
           token: ${{ secrets.NCW_SERVER_PAT }}
-          ref: ionos-dev
+          ref: ${{ env.BASE_BRANCH }}
           fetch-depth: 1
           sparse-checkout: |
-            IONOS
+            ${{ env.SUBMODULE_NAME }}
             .gitmodules
 
       - name: Check GitHub CLI installation
@@ -107,40 +129,42 @@ jobs:
           sudo apt update
           sudo apt install gh -y
 
-      - name: Update IONOS submodule
+      - name: Update submodule
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           # Configure git to use HTTPS instead of SSH for GitHub
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git config --global url."https://".insteadOf "ssh://"
-          
-          # Create a new branch for the update from ionos-dev
-          BRANCH_NAME="update-ionos-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
+
+          # Create a new branch for the update from base branch
+          # Replace slashes with dashes for cleaner branch names
+          SUBMODULE_NAME_CLEAN=$(echo "${{ env.SUBMODULE_NAME }}" | tr '/' '-')
+          BRANCH_NAME="update-${SUBMODULE_NAME_CLEAN}-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
           git checkout -B "$BRANCH_NAME"
-          
-          # Initialize only the IONOS submodule
-          git submodule update --init IONOS
-          
+
+          # Initialize only the target submodule
+          git submodule update --init "${{ env.SUBMODULE_NAME }}"
+
           # Update the submodule to the new commit
-          cd IONOS
+          cd "${{ env.SUBMODULE_NAME }}"
           git fetch origin main
           git checkout ${{ needs.create-prerelease.outputs.sha }}
-          
+
           # Get the commit message for description
           COMMIT_MSG=$(git log -1 --pretty=format:'%s')
           cd ..
-          
+
           # Commit the submodule update with release link
-          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-prerelease.outputs.short_sha }}"
-          git add IONOS
-          git commit -m "IONOS(config): update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)" \
+          RELEASE_URL="https://github.com/${{ env.SUBMODULE_REPO }}/releases/tag/${{ needs.create-prerelease.outputs.short_sha }}"
+          git add "${{ env.SUBMODULE_NAME }}"
+          git commit -m "${{ env.COMMIT_PREFIX }}: update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)" \
             -m "" \
             -m "$RELEASE_URL" \
             -m "" \
             -m "Signed-off-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
-          
+
           # Push the branch
           git push origin "$BRANCH_NAME"
 
@@ -148,39 +172,41 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.NCW_SERVER_PAT }}
         run: |
-          BRANCH_NAME="update-ionos-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
-          
-          # Get the commit message from IONOS submodule
-          cd IONOS
+          # Replace slashes with dashes for cleaner branch names
+          SUBMODULE_NAME_CLEAN=$(echo "${{ env.SUBMODULE_NAME }}" | tr '/' '-')
+          BRANCH_NAME="update-${SUBMODULE_NAME_CLEAN}-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
+
+          # Get the commit message from submodule
+          cd "${{ env.SUBMODULE_NAME }}"
           COMMIT_MSG=$(git log -1 --pretty=format:'%s')
           cd ..
-          
-          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-prerelease.outputs.short_sha }}"
-          
-          PR_BODY="IONOS(config): update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)
+
+          RELEASE_URL="https://github.com/${{ env.SUBMODULE_REPO }}/releases/tag/${{ needs.create-prerelease.outputs.short_sha }}"
+
+          PR_BODY="${{ env.COMMIT_PREFIX }}: update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)
 
           $RELEASE_URL
 
           ---
-          Auto-generated PR from IONOS repository merge to main branch."
-          
+          Auto-generated PR from ${{ env.SUBMODULE_NAME }} repository merge to main branch."
+
           # Check if a PR already exists for this branch
           EXISTING_PR_URL=$(gh pr list \
-            --repo IONOS-Productivity/ncw-server \
+            --repo "${{ env.TARGET_REPO }}" \
             --head "$BRANCH_NAME" \
             --state open \
             --json url \
             --jq '.[0].url')
-          
+
           if [ -n "$EXISTING_PR_URL" ]; then
             PR_URL="$EXISTING_PR_URL"
             echo "::notice::PR already exists: $PR_URL"
           else
             PR_URL=$(gh pr create \
-              --repo IONOS-Productivity/ncw-server \
-              --title "IONOS(config): update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)" \
+              --repo "${{ env.TARGET_REPO }}" \
+              --title "${{ env.COMMIT_PREFIX }}: update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)" \
               --body "$PR_BODY" \
-              --base ionos-dev \
+              --base "${{ env.BASE_BRANCH }}" \
               --head "$BRANCH_NAME")
             echo "::notice::Created PR: $PR_URL"
           fi
