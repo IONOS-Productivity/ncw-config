@@ -3,6 +3,13 @@
 #
 # This workflow automates submodule updates in ncw-server when PRs are merged to main.
 #
+# How it works:
+# 1. Triggers when a PR with milestone "ncw-<nnn>" is merged to main in the submodule repo
+# 2. Creates a pre-release in the submodule repository
+# 3. Checks if branch "rc/ncw-<nnn>" exists in ncw-server
+# 4. Creates update branch from "rc/ncw-<nnn>" if it exists, otherwise from BASE_BRANCH
+# 5. Creates PR to merge into BASE_BRANCH with the milestone attached
+#
 # To adapt for other submodules:
 # 1. Copy this workflow file to the submodule repository's .github/workflows/
 # 2. Update the 'if' condition in create-submodule-pr job
@@ -99,13 +106,40 @@ jobs:
       COMMIT_PREFIX: "IONOS(config)"                     # Prefix for commit messages and PR titles
 
     steps:
+      - name: Get milestone from merged PR
+        id: get-milestone
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the PR that was merged in this push
+          PR_NUMBER=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --state merged \
+            --search "${{ github.sha }}" \
+            --json number \
+            --jq '.[0].number')
+
+          if [ -n "$PR_NUMBER" ]; then
+            # Get milestone from the PR
+            MILESTONE=$(gh pr view "$PR_NUMBER" \
+              --repo "${{ github.repository }}" \
+              --json milestone \
+              --jq '.milestone.title')
+
+            echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
+            echo "::notice::Found milestone: $MILESTONE"
+          else
+            echo "milestone=" >> $GITHUB_OUTPUT
+            echo "::notice::No milestone found"
+          fi
+
       - name: Checkout ncw-server repository
         uses: actions/checkout@v5
         with:
           repository: ${{ env.TARGET_REPO }}
           token: ${{ secrets.NCW_SERVER_PAT }}
           ref: ${{ env.BASE_BRANCH }}
-          fetch-depth: 1
+          fetch-depth: 0
           sparse-checkout: |
             ${{ env.SUBMODULE_NAME }}
             .gitmodules
@@ -138,7 +172,35 @@ jobs:
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git config --global url."https://".insteadOf "ssh://"
 
-          # Create a new branch for the update from base branch
+          # Determine base branch from milestone
+          SELECTED_BASE_BRANCH="${{ env.BASE_BRANCH }}"
+          MILESTONE="${{ steps.get-milestone.outputs.milestone }}"
+
+          if [ -n "$MILESTONE" ]; then
+            # Check if milestone matches pattern ncw-<nnn>
+            if [[ "$MILESTONE" =~ ^ncw-[0-9]+$ ]]; then
+              RC_BRANCH="rc/$MILESTONE"
+              echo "::notice::Checking for release candidate branch: $RC_BRANCH"
+
+              # Fetch all branches
+              git fetch origin
+
+              # Check if rc branch exists
+              if git ls-remote --heads origin "$RC_BRANCH" | grep -q "$RC_BRANCH"; then
+                SELECTED_BASE_BRANCH="$RC_BRANCH"
+                echo "::notice::Using base branch: $SELECTED_BASE_BRANCH"
+                git checkout -b "temp-base" "origin/$SELECTED_BASE_BRANCH"
+              else
+                echo "::notice::Branch $RC_BRANCH not found, using ${{ env.BASE_BRANCH }}"
+              fi
+            else
+              echo "::notice::Milestone '$MILESTONE' doesn't match ncw-<nnn> pattern, using ${{ env.BASE_BRANCH }}"
+            fi
+          else
+            echo "::notice::No milestone found, using ${{ env.BASE_BRANCH }}"
+          fi
+
+          # Create a new branch for the update from the determined base branch
           # Replace slashes with dashes for cleaner branch names
           SUBMODULE_NAME_CLEAN=$(echo "${{ env.SUBMODULE_NAME }}" | tr '/' '-')
           BRANCH_NAME="update-${SUBMODULE_NAME_CLEAN}-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
@@ -175,6 +237,7 @@ jobs:
           # Replace slashes with dashes for cleaner branch names
           SUBMODULE_NAME_CLEAN=$(echo "${{ env.SUBMODULE_NAME }}" | tr '/' '-')
           BRANCH_NAME="update-${SUBMODULE_NAME_CLEAN}-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
+          MILESTONE="${{ steps.get-milestone.outputs.milestone }}"
 
           # Get the commit message from submodule
           cd "${{ env.SUBMODULE_NAME }}"
@@ -183,9 +246,18 @@ jobs:
 
           RELEASE_URL="https://github.com/${{ env.SUBMODULE_REPO }}/releases/tag/${{ needs.create-prerelease.outputs.short_sha }}"
 
+          # Build PR body with milestone info if available
           PR_BODY="${{ env.COMMIT_PREFIX }}: update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)
 
-          $RELEASE_URL
+          $RELEASE_URL"
+
+          if [ -n "$MILESTONE" ]; then
+            PR_BODY="$PR_BODY
+
+          Milestone: $MILESTONE"
+          fi
+
+          PR_BODY="$PR_BODY
 
           ---
           Auto-generated PR from ${{ env.SUBMODULE_NAME }} repository merge to main branch."
@@ -202,12 +274,23 @@ jobs:
             PR_URL="$EXISTING_PR_URL"
             echo "::notice::PR already exists: $PR_URL"
           else
-            PR_URL=$(gh pr create \
-              --repo "${{ env.TARGET_REPO }}" \
-              --title "${{ env.COMMIT_PREFIX }}: update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)" \
-              --body "$PR_BODY" \
-              --base "${{ env.BASE_BRANCH }}" \
-              --head "$BRANCH_NAME")
+            # Create PR with milestone if available
+            if [ -n "$MILESTONE" ]; then
+              PR_URL=$(gh pr create \
+                --repo "${{ env.TARGET_REPO }}" \
+                --title "${{ env.COMMIT_PREFIX }}: update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)" \
+                --body "$PR_BODY" \
+                --base "${{ env.BASE_BRANCH }}" \
+                --head "$BRANCH_NAME" \
+                --milestone "$MILESTONE")
+            else
+              PR_URL=$(gh pr create \
+                --repo "${{ env.TARGET_REPO }}" \
+                --title "${{ env.COMMIT_PREFIX }}: update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)" \
+                --body "$PR_BODY" \
+                --base "${{ env.BASE_BRANCH }}" \
+                --head "$BRANCH_NAME")
+            fi
             echo "::notice::Created PR: $PR_URL"
           fi
   log-details:
