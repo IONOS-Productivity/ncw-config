@@ -113,26 +113,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get the PR that was merged in this push
-          PR_NUMBER=$(gh pr list \
-            --repo "${{ github.repository }}" \
-            --state merged \
-            --search "${{ github.sha }}" \
-            --json number \
-            --jq '.[0].number')
+          # Use GitHub API to get PRs associated with this commit
+          # This is more reliable than searching, as it uses commit-to-PR association
+          PR_DATA=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '[.[] | select(.merged_at != null)] | .[0] | {number: .number, milestone: .milestone.title}')
+
+          PR_NUMBER=$(echo "$PR_DATA" | jq -r '.number // empty')
+          MILESTONE=$(echo "$PR_DATA" | jq -r '.milestone // empty')
 
           if [ -n "$PR_NUMBER" ]; then
-            # Get milestone from the PR
-            MILESTONE=$(gh pr view "$PR_NUMBER" \
-              --repo "${{ github.repository }}" \
-              --json milestone \
-              --jq '.milestone.title')
-
             echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
-            echo "::notice::Found milestone: $MILESTONE"
+            if [ -n "$MILESTONE" ]; then
+              echo "::notice::Found PR #$PR_NUMBER with milestone: $MILESTONE"
+            else
+              echo "::notice::Found PR #$PR_NUMBER but no milestone set"
+            fi
           else
             echo "milestone=" >> $GITHUB_OUTPUT
-            echo "::notice::No milestone found"
+            echo "::notice::No merged PR found for commit ${{ github.sha }}"
           fi
 
       - name: Checkout ncw-server repository
