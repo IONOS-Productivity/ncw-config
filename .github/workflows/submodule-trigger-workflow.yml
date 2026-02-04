@@ -176,20 +176,19 @@ jobs:
           SELECTED_BASE_BRANCH="${{ env.BASE_BRANCH }}"
           MILESTONE="${{ steps.get-milestone.outputs.milestone }}"
 
+          # Fetch all branches to check for rc branches
+          git fetch origin
+
           if [ -n "$MILESTONE" ]; then
             # Check if milestone matches pattern ncw-<nnn>
             if [[ "$MILESTONE" =~ ^ncw-[0-9]+$ ]]; then
               RC_BRANCH="rc/$MILESTONE"
               echo "::notice::Checking for release candidate branch: $RC_BRANCH"
 
-              # Fetch all branches
-              git fetch origin
-
               # Check if rc branch exists
               if git ls-remote --heads origin "$RC_BRANCH" | grep -q "$RC_BRANCH"; then
                 SELECTED_BASE_BRANCH="$RC_BRANCH"
                 echo "::notice::Using base branch: $SELECTED_BASE_BRANCH"
-                git checkout -b "temp-base" "origin/$SELECTED_BASE_BRANCH"
               else
                 echo "::notice::Branch $RC_BRANCH not found, using ${{ env.BASE_BRANCH }}"
               fi
@@ -200,11 +199,11 @@ jobs:
             echo "::notice::No milestone found, using ${{ env.BASE_BRANCH }}"
           fi
 
-          # Create a new branch for the update from the determined base branch
+          # Create a new branch for the update directly from the selected base branch
           # Replace slashes with dashes for cleaner branch names
           SUBMODULE_NAME_CLEAN=$(echo "${{ env.SUBMODULE_NAME }}" | tr '/' '-')
           BRANCH_NAME="update-${SUBMODULE_NAME_CLEAN}-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
-          git checkout -B "$BRANCH_NAME"
+          git checkout -B "$BRANCH_NAME" "origin/$SELECTED_BASE_BRANCH"
 
           # Initialize only the target submodule
           git submodule update --init "${{ env.SUBMODULE_NAME }}"
