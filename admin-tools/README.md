@@ -36,6 +36,39 @@ Resend welcome email to a specific user.
 - `--dry-run`: Preview actions without executing
 - `-q, --quiet`: Suppress informational output
 
+### update-user-email.sh
+
+Update the email address for a Nextcloud user. This is particularly useful when the initial admin user had a typo in their email address and needs to receive welcome emails.
+
+```bash
+./update-user-email.sh [OPTIONS] <username> <new_email>
+
+# Examples:
+./update-user-email.sh admin admin@example.com
+./update-user-email.sh --resend-welcome admin corrected@example.com
+./update-user-email.sh --dry-run john.doe newemail@example.com
+./update-user-email.sh --quiet jane.smith updated@example.com
+```
+
+**Arguments:**
+- `username`: Nextcloud username
+- `new_email`: New email address to set
+
+**Options:**
+- `-h, --help`: Show help message
+- `-v, --version`: Show version information
+- `--dry-run`: Preview actions without executing
+- `-q, --quiet`: Suppress informational output
+- `-w, --resend-welcome`: Resend welcome email after updating
+
+**What it does:**
+1. Validates that the user exists
+2. Checks if the email address has changed (skips update if already set)
+3. Updates the user's email setting if changed (`user:setting` - OCC validates the email format)
+4. Optionally resends the welcome email
+
+**Use case:** When an initial admin user had a typo in their email address during setup, support can use this tool to correct the email and optionally trigger a new welcome email.
+
 ### update-mail-accounts-on-domain-change.sh
 
 Update email addresses in Nextcloud mail app configuration when a customer's email domain changes (e.g., domain cancellation, email parking). This script updates the email address, IMAP username, and SMTP username for all matching mail accounts.
