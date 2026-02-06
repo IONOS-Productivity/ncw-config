@@ -48,6 +48,7 @@ systemtags:OCA\\SystemTags\\Settings\\Admin
 user_ldap:OCA\\User_LDAP\\Settings\\Admin
 activity:OCA\\Activity\\Settings\\Admin
 bruteforcesettings:OCA\\BruteForceSettings\\Settings\\IPWhitelist
+user_oidc:OCA\\UserOIDC\\Settings\\AdminSettings
 "
 
 #===============================================================================
