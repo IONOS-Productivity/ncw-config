@@ -46,6 +46,7 @@ password_policy:OCA\\Password_Policy\\Settings\\Settings
 settings:OCA\\Settings\\Settings\\Admin\\Security
 systemtags:OCA\\SystemTags\\Settings\\Admin
 user_ldap:OCA\\User_LDAP\\Settings\\Admin
+activity:OCA\\Activity\\Settings\\Admin
 "
 
 #===============================================================================
@@ -147,18 +148,18 @@ set_app_config_typed() {
 	_value="${3}"
 	_expected_type="${4}"
 	shift 4  # Remove first 4 args, leaving any additional flags
-	
+
 	# Get current config value with type information from JSON output
 	if ! _current_json=$(php occ config:list "${_app}" --private 2>/dev/null); then
 		echo "Error: failed to read config for app '${_app}' via 'php occ config:list'." >&2
 		return 1
 	fi
-	
+
 	# Check if the key exists in the JSON, regardless of its value (including "" or null)
 	if echo "${_current_json}" | jq -e ".apps.\"${_app}\" | has(\"${_key}\")" >/dev/null 2>&1; then
 		# Determine the JSON type of the current value using jq
 		_current_type=$(echo "${_current_json}" | jq -r ".apps.\"${_app}\".\"${_key}\" | type" 2>/dev/null)
-		
+
 		# Compare the jq-reported type with the expected type
 		case "${_expected_type}" in
 			string)
@@ -188,7 +189,7 @@ set_app_config_typed() {
 				;;
 		esac
 	fi
-	
+
 	# Set with correct type (pass through any additional flags like --sensitive)
 	execute_occ_command config:app:set "$@" --value "${_value}" --type "${_expected_type}" "${_app}" "${_key}"
 }
