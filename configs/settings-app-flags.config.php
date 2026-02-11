@@ -7,4 +7,5 @@
 
 $CONFIG = [
 	'settings.only-delegated-settings' => true,
+	'settings.hide-dev-notice' => true
 ];
