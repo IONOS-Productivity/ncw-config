@@ -29,6 +29,7 @@ NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(
 FULL_BUILD_APPS = \
 	activity \
 	assistant \
+	bruteforcesettings \
 	calendar \
 	collectives \
 	contacts \
