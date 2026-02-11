@@ -34,6 +34,7 @@ FULL_BUILD_APPS = \
 	contacts \
 	deck \
 	end_to_end_encryption \
+	files_pdfviewer \
 	groupfolders \
 	integration_openai \
 	mail \
