@@ -41,6 +41,7 @@ DISABLED_APPS=$( read_app_list "${BDIR}/disabled-apps.list" )
 readonly ADMIN_DELEGATION_MAP="
 groupfolders:OCA\\GroupFolders\\Settings\\Admin
 mail:OCA\\Mail\\Settings\\AdminSettings
+mail:OCA\\Mail\\Settings\\ProviderAccountOverviewSettings
 oauth2:OCA\\OAuth2\\Settings\\Admin
 password_policy:OCA\\Password_Policy\\Settings\\Settings
 settings:OCA\\Settings\\Settings\\Admin\\Security
