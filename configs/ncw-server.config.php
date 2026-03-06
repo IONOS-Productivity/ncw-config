@@ -10,4 +10,5 @@ $CONFIG = [
 	'lookup_server' => '',
 	'ncw.ext_ref' => (string)getenv('EXT_REF'),
 	'ncw.customerDomain' => (string)getenv('CUSTOMER_DOMAIN'),
+	'ncw.brand' => (string)getenv('BRAND'),
 ];
