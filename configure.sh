@@ -535,6 +535,13 @@ configure_ionos_mailconfig_api() {
 
 	execute_occ_command config:app:set --value no --type string mail ionos-mailconfig-enabled
 
+	# Disable mailconfig if brand is not "IONOS"
+	log_info "BRAND: ${BRAND}"
+	if [ "$BRAND" != "IONOS" ]; then
+		log_info "Brand is not 'IONOS', ionos-mailconfig-enabled remains disabled"
+		return 0
+	fi
+
 	# Check required environment variables
 	if ! validate_env_vars IONOS_MAILCONFIG_API_URL IONOS_MAILCONFIG_API_USER IONOS_MAILCONFIG_API_PASS EXT_REF CUSTOMER_DOMAIN; then
 		log_warning "Skipping mailconfig API configuration due to missing environment variables"
