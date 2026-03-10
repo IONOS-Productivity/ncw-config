@@ -103,6 +103,9 @@ jobs:
     runs-on: [ubuntu-latest]
     # Update this condition to match SUBMODULE_REPO when adapting for other submodules
     if: github.repository == 'IONOS-Productivity/ncw-config'
+    outputs:
+      pr_url: ${{ steps.create-pr.outputs.pr_url }}
+      pr_number: ${{ steps.create-pr.outputs.pr_number }}
     env:
       # Configuration for submodule updates - customize these values for different submodules
       SUBMODULE_NAME: IONOS                              # Submodule directory name in ncw-server
@@ -113,42 +116,6 @@ jobs:
       MILESTONE_PREFIX: ncw                              # Milestone prefix (e.g., "ncw" for "ncw-3")
 
     steps:
-      - name: Get milestone from merged PR
-        id: get-milestone
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Use GitHub API to get PRs associated with this commit
-          # This is more reliable than searching, as it uses commit-to-PR association
-          PR_DATA=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
-            --jq '[.[] | select(.merged_at != null)] | .[0] | {number: .number, milestone: .milestone.title}')
-
-          PR_NUMBER=$(echo "$PR_DATA" | jq -r '.number // empty')
-          MILESTONE=$(echo "$PR_DATA" | jq -r '.milestone // empty')
-
-          if [ -n "$PR_NUMBER" ]; then
-            echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
-            if [ -n "$MILESTONE" ]; then
-              echo "::notice::Found PR #$PR_NUMBER with milestone: $MILESTONE"
-            else
-              echo "::notice::Found PR #$PR_NUMBER but no milestone set"
-            fi
-          else
-            echo "milestone=" >> $GITHUB_OUTPUT
-            echo "::notice::No merged PR found for commit ${{ github.sha }}"
-          fi
-
-      - name: Checkout ncw-server repository
-        uses: actions/checkout@v5
-        with:
-          repository: ${{ env.TARGET_REPO }}
-          token: ${{ secrets.NCW_SERVER_PAT }}
-          ref: ${{ env.BASE_BRANCH }}
-          fetch-depth: 0
-          sparse-checkout: |
-            ${{ env.SUBMODULE_NAME }}
-            .gitmodules
-
       - name: Check GitHub CLI installation
         id: check-gh
         run: |
@@ -167,6 +134,48 @@ jobs:
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
           sudo apt update
           sudo apt install gh -y
+
+      - name: Get milestone from merged PR
+        id: get-milestone
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Use GitHub API to get PRs associated with this commit
+          # This is more reliable than searching, as it uses commit-to-PR association
+          PR_DATA=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '[.[] | select(.merged_at != null)] | .[0] | {number: .number, milestone: .milestone.title, url: .html_url}')
+
+          PR_NUMBER=$(echo "$PR_DATA" | jq -r '.number // empty')
+          MILESTONE=$(echo "$PR_DATA" | jq -r '.milestone // empty')
+          PR_URL=$(echo "$PR_DATA" | jq -r '.url // empty')
+
+          if [ -n "$PR_NUMBER" ]; then
+            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
+            echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+            if [ -n "$MILESTONE" ]; then
+              echo "::notice::Found PR #$PR_NUMBER with milestone: $MILESTONE"
+            else
+              echo "::notice::Found PR #$PR_NUMBER but no milestone set"
+            fi
+          else
+            echo "pr_number=" >> $GITHUB_OUTPUT
+            echo "milestone=" >> $GITHUB_OUTPUT
+            echo "pr_url=" >> $GITHUB_OUTPUT
+            echo "::notice::No merged PR found for commit ${{ github.sha }}"
+          fi
+
+      - name: Checkout ncw-server repository
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.TARGET_REPO }}
+          token: ${{ secrets.NCW_SERVER_PAT }}
+          ref: ${{ env.BASE_BRANCH }}
+          fetch-depth: 0
+          sparse-checkout: |
+            ${{ env.SUBMODULE_NAME }}
+            .gitmodules
+
 
       - name: Update submodule
         run: |
@@ -239,6 +248,7 @@ jobs:
           git push origin "$BRANCH_NAME"
 
       - name: Create Pull Request
+        id: create-pr
         env:
           GH_TOKEN: ${{ secrets.NCW_SERVER_PAT }}
         run: |
@@ -246,6 +256,7 @@ jobs:
           SUBMODULE_NAME_CLEAN=$(echo "${{ env.SUBMODULE_NAME }}" | tr '/' '-')
           BRANCH_NAME="update-${SUBMODULE_NAME_CLEAN}-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
           MILESTONE="${{ steps.get-milestone.outputs.milestone }}"
+          TRIGGER_PR_URL="${{ steps.get-milestone.outputs.pr_url }}"
 
           # Get the commit message from submodule
           cd "${{ env.SUBMODULE_NAME }}"
@@ -255,31 +266,30 @@ jobs:
           RELEASE_URL="https://github.com/${{ env.SUBMODULE_REPO }}/releases/tag/${{ needs.create-prerelease.outputs.short_sha }}"
 
           # Build PR body with milestone info if available
-          PR_BODY="${{ env.COMMIT_PREFIX }}: update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)
+          PR_BODY="${{ env.COMMIT_PREFIX }}: update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)"$'\n\n'"$RELEASE_URL"
 
-          $RELEASE_URL"
-
-          if [ -n "$MILESTONE" ]; then
-            PR_BODY="$PR_BODY
-
-          Milestone: $MILESTONE"
+          # Add triggering PR link if available
+          if [ -n "$TRIGGER_PR_URL" ]; then
+            PR_BODY="$PR_BODY"$'\n\n'"Triggered by: $TRIGGER_PR_URL"
           fi
 
-          PR_BODY="$PR_BODY
+          if [ -n "$MILESTONE" ]; then
+            PR_BODY="$PR_BODY"$'\n\n'"Milestone: $MILESTONE"
+          fi
 
-          ---
-          Auto-generated PR from ${{ env.SUBMODULE_NAME }} repository merge to main branch."
+          PR_BODY="$PR_BODY"$'\n\n'"---"$'\n'"Auto-generated PR from ${{ env.SUBMODULE_NAME }} repository merge to main branch."
 
           # Check if a PR already exists for this branch
-          EXISTING_PR_URL=$(gh pr list \
+          EXISTING_PR_DATA=$(gh pr list \
             --repo "${{ env.TARGET_REPO }}" \
             --head "$BRANCH_NAME" \
             --state open \
-            --json url \
-            --jq '.[0].url')
+            --json url,number \
+            --jq '.[0]')
 
-          if [ -n "$EXISTING_PR_URL" ]; then
-            PR_URL="$EXISTING_PR_URL"
+          if [ -n "$EXISTING_PR_DATA" ] && [ "$EXISTING_PR_DATA" != "null" ]; then
+            PR_URL=$(echo "$EXISTING_PR_DATA" | jq -r '.url')
+            PR_NUMBER=$(echo "$EXISTING_PR_DATA" | jq -r '.number')
             echo "::notice::PR already exists: $PR_URL"
           else
             # Create PR with milestone if available
@@ -306,8 +316,14 @@ jobs:
                 --base "$TARGET_BRANCH" \
                 --head "$BRANCH_NAME")
             fi
+            # Fetch the PR number via gh pr view instead of relying on gh pr create --json output format
+            PR_NUMBER=$(gh pr view "$PR_URL" --repo "${{ env.TARGET_REPO }}" --json number --jq '.number')
             echo "::notice::Created PR: $PR_URL"
           fi
+
+          # Output the PR URL and number for other jobs
+          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
   log-details:
     needs: [create-prerelease, create-submodule-pr]
     runs-on: [ubuntu-latest]
@@ -320,5 +336,8 @@ jobs:
           echo "::notice::🔗 Release URL: ${{ needs.create-prerelease.outputs.release_url }}"
           if [ "${{ needs.create-submodule-pr.result }}" == "success" ]; then
             echo "::notice::📦 Submodule update PR created for ncw-server"
+            if [ -n "${{ needs.create-submodule-pr.outputs.pr_url }}" ]; then
+              echo "::notice::🔀 PR URL: ${{ needs.create-submodule-pr.outputs.pr_url }}"
+            fi
           fi
           echo "::notice::💾 Commit: ${{ needs.create-prerelease.outputs.sha }}"
