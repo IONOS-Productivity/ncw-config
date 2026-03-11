@@ -635,6 +635,101 @@ configure_ionos_ai_model_hub() {
 	log_info "IONOS AI Model Hub configuration completed successfully"
 }
 
+# Configure GDATA VaaS antivirus app
+# Usage: configure_gdatavaas_app
+configure_gdatavaas_app() {
+	log_info "Configuring GDATA VaaS antivirus app..."
+
+	# Check if configuration is enabled
+	if [ "${APP_GDATAVAAS_ENABLED}" != "true" ]; then
+		log_info "GDATA VaaS antivirus app configuration is disabled (APP_GDATAVAAS_ENABLED != true)"
+		execute_occ_command app:disable gdatavaas
+		return 0
+	fi
+
+	# Enable the app
+	enable_app gdatavaas "GDATA VaaS Antivirus"
+
+	# Set authentication method (default: ResourceOwnerPassword)
+	_auth_method="${APP_GDATAVAAS_AUTH_METHOD:-ResourceOwnerPassword}"
+	set_app_config_typed gdatavaas authMethod "${_auth_method}" string
+
+	# Configure based on authentication method
+	if [ "${_auth_method}" = "ResourceOwnerPassword" ]; then
+		log_info "Configuring GDATA VaaS with ResourceOwnerPassword authentication..."
+		if ! validate_env_vars APP_GDATAVAAS_USERNAME APP_GDATAVAAS_PASSWORD; then
+			log_warning "GDATA VaaS configuration incomplete: USERNAME and PASSWORD required for ResourceOwnerPassword auth method"
+			return 1
+		fi
+		set_app_config_typed gdatavaas username "${APP_GDATAVAAS_USERNAME}" string
+		set_app_config_typed gdatavaas password "${APP_GDATAVAAS_PASSWORD}" string --sensitive
+	elif [ "${_auth_method}" = "ClientCredentials" ]; then
+		log_info "Configuring GDATA VaaS with ClientCredentials authentication..."
+		if ! validate_env_vars APP_GDATAVAAS_CLIENT_ID APP_GDATAVAAS_CLIENT_SECRET; then
+			log_warning "GDATA VaaS configuration incomplete: CLIENT_ID and CLIENT_SECRET required for ClientCredentials auth method"
+			return 1
+		fi
+		set_app_config_typed gdatavaas clientId "${APP_GDATAVAAS_CLIENT_ID}" string
+		set_app_config_typed gdatavaas clientSecret "${APP_GDATAVAAS_CLIENT_SECRET}" string --sensitive
+	else
+		log_error "Invalid authentication method: ${_auth_method}. Must be 'ResourceOwnerPassword' or 'ClientCredentials'"
+		return 1
+	fi
+
+	# Configure VaaS URLs with defaults
+	_vaas_url="${APP_GDATAVAAS_VAAS_URL:-https://gateway.staging.vaas.gdatasecurity.de}"
+	set_app_config_typed gdatavaas vaasUrl "${_vaas_url}" string
+
+	_token_endpoint="${APP_GDATAVAAS_TOKEN_ENDPOINT:-https://account-staging.gdata.de/realms/vaas-staging/protocol/openid-connect/token}"
+	set_app_config_typed gdatavaas tokenEndpoint "${_token_endpoint}" string
+
+	# Configure quarantine folder (default: Quarantine)
+	_quarantine_folder="${APP_GDATAVAAS_QUARANTINE_FOLDER:-Quarantine}"
+	set_app_config_typed gdatavaas quarantineFolder "${_quarantine_folder}" string
+
+	# Configure boolean settings with defaults
+	_auto_scan="${APP_GDATAVAAS_AUTO_SCAN_FILES:-false}"
+	set_app_config_typed gdatavaas autoScanFiles "${_auto_scan}" boolean
+
+	_prefix_malicious="${APP_GDATAVAAS_PREFIX_MALICIOUS:-false}"
+	set_app_config_typed gdatavaas prefixMalicious "${_prefix_malicious}" boolean
+
+	_disable_unscanned_tag="${APP_GDATAVAAS_DISABLE_UNSCANNED_TAG:-false}"
+	set_app_config_typed gdatavaas disableUnscannedTag "${_disable_unscanned_tag}" boolean
+
+	# Configure scan filters (empty by default)
+	_scan_only_this="${APP_GDATAVAAS_SCAN_ONLY_THIS:-}"
+	set_app_config_typed gdatavaas scanOnlyThis "${_scan_only_this}" string
+
+	_do_not_scan_this="${APP_GDATAVAAS_DO_NOT_SCAN_THIS:-}"
+	set_app_config_typed gdatavaas doNotScanThis "${_do_not_scan_this}" string
+
+	# Configure email notifications
+	_notify_mail="${APP_GDATAVAAS_NOTIFY_MAIL:-}"
+	if [ -n "${_notify_mail}" ]; then
+		set_app_config_typed gdatavaas notifyMail "${_notify_mail}" string
+	fi
+
+	_send_mail_on_virus="${APP_GDATAVAAS_SEND_MAIL_ON_VIRUS_UPLOAD:-false}"
+	set_app_config_typed gdatavaas sendMailOnVirusUpload "${_send_mail_on_virus}" boolean
+
+	# Configure scan limits with defaults
+	_max_scan_size="${APP_GDATAVAAS_MAX_SCAN_SIZE_IN_MB:-256}"
+	set_app_config_typed gdatavaas maxScanSizeInMB "${_max_scan_size}" integer
+
+	_timeout="${APP_GDATAVAAS_TIMEOUT:-300}"
+	set_app_config_typed gdatavaas timeout "${_timeout}" integer
+
+	# Configure caching options with defaults
+	_cache="${APP_GDATAVAAS_CACHE:-true}"
+	set_app_config_typed gdatavaas cache "${_cache}" boolean
+
+	_hashlookup="${APP_GDATAVAAS_HASHLOOKUP:-true}"
+	set_app_config_typed gdatavaas hashlookup "${_hashlookup}" boolean
+
+	log_info "GDATA VaaS antivirus app configured successfully with auth method: ${_auth_method}, VaaS URL: ${_vaas_url}"
+}
+
 #===============================================================================
 # App Management Functions
 #===============================================================================
@@ -703,6 +798,7 @@ configure_apps() {
 	# currently disabled; enable again after removal from removed-apps.txt
 	# configure_files_antivirus_app
 
+	configure_gdatavaas_app
 	configure_viewer_app
 	configure_collabora_app
 	configure_notify_push_app
