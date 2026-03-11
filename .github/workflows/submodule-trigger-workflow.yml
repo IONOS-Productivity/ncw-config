@@ -197,8 +197,19 @@ jobs:
 
           RELEASE_URL="https://github.com/${{ env.SUBMODULE_REPO }}/releases/tag/${{ needs.create-prerelease.outputs.short_sha }}"
 
+          # Fetch the source PR URL from the submodule repo that introduced this commit
+          SOURCE_PR_URL=$(gh pr list \
+            --repo "${{ env.SUBMODULE_REPO }}" \
+            --state merged \
+            --search "${{ needs.create-prerelease.outputs.sha }}" \
+            --json url \
+            --jq '.[0].url // ""')
+
           # Build PR body
           PR_BODY="${{ env.COMMIT_PREFIX }}: update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)"$'\n\n'"$RELEASE_URL"
+          if [ -n "$SOURCE_PR_URL" ]; then
+            PR_BODY="$PR_BODY"$'\n\n'"**Source PR:** $SOURCE_PR_URL"
+          fi
           PR_BODY="$PR_BODY"$'\n\n'"---"$'\n'"Auto-generated PR from ${{ env.SUBMODULE_NAME }} repository merge to main branch."
 
           # Check if a PR already exists for this branch
