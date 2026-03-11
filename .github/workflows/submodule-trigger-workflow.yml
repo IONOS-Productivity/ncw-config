@@ -210,7 +210,7 @@ jobs:
           if [ -n "$SOURCE_PR_URL" ]; then
             PR_BODY="$PR_BODY"$'\n\n'"**Source PR:** $SOURCE_PR_URL"
           fi
-          PR_BODY="$PR_BODY"$'\n\n'"---"$'\n'"Auto-generated PR from ${{ env.SUBMODULE_NAME }} repository merge to main branch."
+          PR_BODY="$PR_BODY"$'\n\n'"---"$'\n'"Auto-generated PR from ${{ env.SUBMODULE_NAME }} repository merge to main branch!"
 
           # Check if a PR already exists for this branch
           EXISTING_PR_DATA=$(gh pr list \
