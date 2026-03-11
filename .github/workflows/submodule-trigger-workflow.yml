@@ -33,6 +33,7 @@ on:
   push:
     branches:
       - main
+      - as/dev/main
   workflow_dispatch:
 
 permissions:
