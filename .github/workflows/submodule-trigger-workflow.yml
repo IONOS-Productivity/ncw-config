@@ -229,19 +229,18 @@ jobs:
             PR_NUMBER=$(echo "$EXISTING_PR_DATA" | jq -r '.number')
             echo "::notice::PR already exists: $PR_URL"
           else
-            # Conditionally add --milestone flag only if a milestone was found on the source PR
-            MILESTONE_FLAG=""
-            if [ -n "$SOURCE_MILESTONE" ]; then
-              MILESTONE_FLAG="--milestone $SOURCE_MILESTONE"
-            fi
-
-            PR_URL=$(gh pr create \
+            # Build gh pr create command, optionally adding --milestone if one was found on the source PR
+            PR_CMD=(gh pr create \
               --repo "${{ env.TARGET_REPO }}" \
               --title "${{ env.COMMIT_PREFIX }}: update submodule ${{ needs.create-prerelease.outputs.short_sha }} ($COMMIT_MSG)" \
               --body "$PR_BODY" \
               --base "${{ env.BASE_BRANCH }}" \
-              --head "$BRANCH_NAME" \
-              $MILESTONE_FLAG)
+              --head "$BRANCH_NAME")
+            if [ -n "$SOURCE_MILESTONE" ]; then
+              PR_CMD+=(--milestone "$SOURCE_MILESTONE")
+            fi
+
+            PR_URL=$("${PR_CMD[@]}")
             # Fetch the PR number via gh pr view instead of relying on gh pr create --json output format
             PR_NUMBER=$(gh pr view "$PR_URL" --repo "${{ env.TARGET_REPO }}" --json number --jq '.number')
             echo "::notice::Created PR: $PR_URL"
