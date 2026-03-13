@@ -127,7 +127,6 @@ jobs:
           sudo apt update
           sudo apt install gh -y
 
-
       - name: Checkout ncw-server repository
         uses: actions/checkout@v5
         with:
