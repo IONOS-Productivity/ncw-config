@@ -211,7 +211,7 @@ jobs:
             PR_BODY="$PR_BODY"$'\n\n'"**Source PR:** $SOURCE_PR_URL"
           fi
           if [ -n "$SOURCE_MILESTONE" ]; then
-            PR_BODY="$PR_BODY"$'\n'"**Milestone:** $SOURCE_MILESTONE"
+            PR_BODY="$PR_BODY"$'\n\n'"**Milestone:** $SOURCE_MILESTONE"
           fi
           PR_BODY="$PR_BODY"$'\n\n'"---"$'\n'"Auto-generated PR from ${{ env.SUBMODULE_NAME }} repository push to main branch."
 
