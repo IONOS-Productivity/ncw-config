@@ -200,7 +200,7 @@ jobs:
           # API error), both variables are left empty and the PR is still created successfully.
           SOURCE_PR_DATA=$(gh api \
             "repos/${{ env.SUBMODULE_REPO }}/commits/${{ needs.create-prerelease.outputs.sha }}/pulls" \
-            --jq '.[0] | {url: .html_url, milestone: .milestone.title} | to_entries[] | "\(.key)=\(.value)"' \
+            --jq '.[0] | {url: .html_url, milestone: .milestone.title} | to_entries[] | select(.value != null) | "\(.key)=\(.value)"' \
             2>/dev/null || true)
           SOURCE_PR_URL=$(echo "$SOURCE_PR_DATA" | grep '^url=' | cut -d= -f2-)
           SOURCE_MILESTONE=$(echo "$SOURCE_PR_DATA" | grep '^milestone=' | cut -d= -f2-)
