@@ -652,15 +652,20 @@ configure_ionos_mailconfig_api() {
 		return 0
 	fi
 
-	# Check required environment variables
-	if ! validate_env_vars IONOS_MAILCONFIG_API_URL IONOS_MAILCONFIG_API_USER IONOS_MAILCONFIG_API_PASS EXT_REF CUSTOMER_DOMAIN; then
+	log_info "FUNCTIONAL_MAILBOX_POSSIBLE: ${FUNCTIONAL_MAILBOX_POSSIBLE}"
+
+	# This flag is set by PSS and reflects whether a customer domain is connected.
+	if [ "${FUNCTIONAL_MAILBOX_POSSIBLE}" != '1' ]; then
+		log_info "Mailbox creation not possible (FUNCTIONAL_MAILBOX_POSSIBLE is not '1'), ionos-mailconfig-enabled remains disabled"
+		return 0
+	fi
+
+	if ! validate_env_vars IONOS_MAILCONFIG_API_URL IONOS_MAILCONFIG_API_USER IONOS_MAILCONFIG_API_PASS EXT_REF; then
 		log_warning "Skipping mailconfig API configuration due to missing environment variables"
 		return 0
 	fi
 
 	log_info "EXT_REF: ${EXT_REF}"
-	log_info "CUSTOMER_DOMAIN: ${CUSTOMER_DOMAIN}"
-
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
 	execute_occ_secret_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --type string --sensitive mail ionos_mailconfig_api_auth_pass
