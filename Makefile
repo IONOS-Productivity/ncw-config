@@ -56,7 +56,8 @@ FULL_BUILD_APPS = \
 COMPOSER_ONLY_APPS = \
 	circles \
 	ncw_mailtemplate \
-	ncw_tools
+	ncw_tools \
+	user_saml
 
 # App directories that need only composer but with --no-scripts (to avoid dev-only composer script issues)
 # These apps have @composer bin commands in post-install-cmd but the bamarni/composer-bin-plugin
