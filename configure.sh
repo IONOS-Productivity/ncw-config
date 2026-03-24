@@ -51,6 +51,7 @@ activity:OCA\\Activity\\Settings\\Admin
 bruteforcesettings:OCA\\BruteForceSettings\\Settings\\IPWhitelist
 user_oidc:OCA\\UserOIDC\\Settings\\AdminSettings
 files_external:OCA\\Files_External\\Settings\\Admin
+user_saml:OCA\\User_SAML\\Settings\\Admin
 "
 
 #===============================================================================
