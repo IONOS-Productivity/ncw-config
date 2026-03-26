@@ -536,6 +536,13 @@ configure_ionos_mailconfig_api() {
 
 	execute_occ_command config:app:set --value no --type string mail ionos-mailconfig-enabled
 
+	# Skip mailconfig setup if mailbox creation is not possible for this instance
+	log_info "FUNCTIONAL_MAILBOX_POSSIBLE: ${FUNCTIONAL_MAILBOX_POSSIBLE}"
+	if [ "$FUNCTIONAL_MAILBOX_POSSIBLE" != "true" ]; then
+		log_info "FUNCTIONAL_MAILBOX_POSSIBLE is not 'true', ionos-mailconfig-enabled remains disabled"
+		return 0
+	fi
+
 	# Disable mailconfig if brand is not "IONOS"
 	log_info "BRAND: ${BRAND}"
 	if [ "$BRAND" != "IONOS" ]; then
@@ -544,25 +551,19 @@ configure_ionos_mailconfig_api() {
 	fi
 
 	# Check required environment variables
-	if ! validate_env_vars IONOS_MAILCONFIG_API_URL IONOS_MAILCONFIG_API_USER IONOS_MAILCONFIG_API_PASS EXT_REF; then
+	if ! validate_env_vars IONOS_MAILCONFIG_API_URL IONOS_MAILCONFIG_API_USER IONOS_MAILCONFIG_API_PASS EXT_REF CUSTOMER_DOMAIN; then
 		log_warning "Skipping mailconfig API configuration due to missing environment variables"
 		return 0
 	fi
 
 	log_info "EXT_REF: ${EXT_REF}"
-	log_info "FUNCTIONAL_MAILBOX_POSSIBLE: ${FUNCTIONAL_MAILBOX_POSSIBLE}"
+	log_info "CUSTOMER_DOMAIN: ${CUSTOMER_DOMAIN}"
 
-	# Only set credentials and enable mailbox creation if the operator has explicitly
-	# flagged it as possible. This flag is set by PSS and reflects whether a customer
-	# domain is connected.
-	if [ "${FUNCTIONAL_MAILBOX_POSSIBLE}" = "true" ]; then
-		execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
-		execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
-		execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
-		execute_occ_command config:app:set --value yes --type string mail ionos-mailconfig-enabled
-	else
-		log_info "Mailbox creation not possible (FUNCTIONAL_MAILBOX_POSSIBLE is not 'true'), ionos-mailconfig-enabled remains disabled"
-	fi
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
+	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
+
+	execute_occ_command config:app:set --value yes --type string mail ionos-mailconfig-enabled
 }
 
 # Configure IONOS AI Model Hub with API credentials
