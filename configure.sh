@@ -109,7 +109,16 @@ log_success() {
 # Execute NextCloud OCC command with error handling
 # Usage: execute_occ_command <command> [args...]
 execute_occ_command() {
-	# Check if this is a config:system:set command and warn about partial config
+	# Safety net: --secret/--sensitive means a secret is in the args; delegate to execute_occ_secret_command.
+	# Must run before any logging that would expose ${*}.
+	if echo "${*}" | grep -qE -- "--secret|--sensitive"; then
+		log_warning "execute_occ_command called with --secret/--sensitive; use execute_occ_secret_command instead. Delegating."
+		execute_occ_secret_command "${@}"
+		return $?
+	fi
+
+	# Check if this is a config:system:set command and warn about partial config.
+	# Safe to log ${*} here because secrets have already been intercepted above.
 	if [ "${1}" = "config:system:set" ]; then
 		log_warning "config:system:set should be avoided. Use PHP <foo>.config.php files in configs/ directory instead. Command: ${*}"
 	fi
