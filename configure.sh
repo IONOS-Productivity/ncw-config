@@ -114,6 +114,13 @@ execute_occ_command() {
 		log_warning "config:system:set should be avoided. Use PHP <foo>.config.php files in configs/ directory instead. Command: ${*}"
 	fi
 
+	# Safety net: --secret means a secret is in the args; use execute_occ_secret_command instead.
+	if echo "${*}" | grep -qE -- "--secret"; then
+		log_warning "execute_occ_command called with --secret; use execute_occ_secret_command instead. Delegating."
+		execute_occ_secret_command "${@}"
+		return $?
+	fi
+
 	if [ "${VERBOSE_OCC_LOGGING}" = "true" ]; then
 		# Check if command contains --sensitive flag to obscure sensitive values
 		_log_command="${*}"
