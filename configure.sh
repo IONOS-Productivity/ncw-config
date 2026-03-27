@@ -4,10 +4,6 @@
 
 SCRIPT_DIR="$(dirname "${0}")"
 readonly SCRIPT_DIR
-NEXTCLOUD_DIR="${SCRIPT_DIR}/.."
-readonly NEXTCLOUD_DIR
-LOGO_ABSOLUTE_DIR="$(cd "${NEXTCLOUD_DIR}/IONOS" && pwd)"
-readonly LOGO_ABSOLUTE_DIR
 
 # Global flag for verbose command logging
 VERBOSE_OCC_LOGGING=false
