@@ -88,6 +88,23 @@ log_success() {
 #===============================================================================
 # Helper Functions
 #===============================================================================
+#
+# OCC Helper Conventions — Sensitive Data
+# ----------------------------------------
+# Two wrapper functions are available for running OCC commands:
+#
+#   execute_occ_command <subcommand> [args...]
+#     General purpose. For commands that do NOT carry secrets.
+#     Use execute_occ_secret_command for any command where an argument may be sensitive.
+#
+#   execute_occ_secret_command <subcommand> [args...]
+#     For OCC commands that carry secrets. Arguments are NOT logged to prevent
+#     accidental secret exposure. Only the subcommand name is recorded in logs.
+#     Example: execute_occ_secret_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
+#     Example: execute_occ_secret_command config:app:set app key --sensitive --value "${SECRET}"
+#
+# Rule: always call execute_occ_secret_command directly for sensitive commands.
+#===============================================================================
 
 # Execute NextCloud OCC command with error handling
 # Usage: execute_occ_command <command> [args...]
@@ -113,6 +130,22 @@ execute_occ_command() {
 
 	if ! php occ "${@}"; then
 		log_error "Failed to execute OCC command: ${*}"
+		return 1
+	fi
+}
+
+# Execute any OCC command that contains sensitive data.
+# Arguments are NOT logged to prevent accidental secret exposure.
+# Only the subcommand name is recorded in logs.
+# Usage: execute_occ_secret_command <subcommand> [args...]
+execute_occ_secret_command() {
+	if [ "${VERBOSE_OCC_LOGGING}" = "true" ]; then
+		echo "[i] Executing sensitive OCC command: $1 [args not logged]" >&2
+		echo "occ $1 [args not logged]" >> "${OCC_LOG_FILE}" 2>&1
+	fi
+
+	if ! php occ "${@}"; then
+		log_error "Failed to execute sensitive OCC command: $1 [args not logged]"
 		return 1
 	fi
 }
