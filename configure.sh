@@ -4,10 +4,6 @@
 
 SCRIPT_DIR="$(dirname "${0}")"
 readonly SCRIPT_DIR
-NEXTCLOUD_DIR="${SCRIPT_DIR}/.."
-readonly NEXTCLOUD_DIR
-LOGO_ABSOLUTE_DIR="$(cd "${NEXTCLOUD_DIR}/IONOS" && pwd)"
-readonly LOGO_ABSOLUTE_DIR
 
 # Global flag for verbose command logging
 VERBOSE_OCC_LOGGING=false
@@ -92,6 +88,23 @@ log_success() {
 #===============================================================================
 # Helper Functions
 #===============================================================================
+#
+# OCC Helper Conventions — Sensitive Data
+# ----------------------------------------
+# Two wrapper functions are available for running OCC commands:
+#
+#   execute_occ_command <subcommand> [args...]
+#     General purpose. For commands that do NOT carry secrets.
+#     Use execute_occ_secret_command for any command where an argument may be sensitive.
+#
+#   execute_occ_secret_command <subcommand> [args...]
+#     For OCC commands that carry secrets. Arguments are NOT logged to prevent
+#     accidental secret exposure. Only the subcommand name is recorded in logs.
+#     Example: execute_occ_secret_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
+#     Example: execute_occ_secret_command config:app:set app key --sensitive --value "${SECRET}"
+#
+# Rule: always call execute_occ_secret_command directly for sensitive commands.
+#===============================================================================
 
 # Execute NextCloud OCC command with error handling
 # Usage: execute_occ_command <command> [args...]
@@ -101,22 +114,43 @@ execute_occ_command() {
 		log_warning "config:system:set should be avoided. Use PHP <foo>.config.php files in configs/ directory instead. Command: ${*}"
 	fi
 
-	if [ "${VERBOSE_OCC_LOGGING}" = "true" ]; then
-		# Check if command contains --sensitive flag to obscure sensitive values
-		_log_command="${*}"
-		if echo "${*}" | grep -q -- "--sensitive"; then
-			# Obscure the value after --sensitive flag
-			_log_command=$(echo "${*}" | sed -E 's/(--value[= ])[^ ]+( .*--sensitive)/\1***REDACTED***\2/g; s/(--sensitive.*--value[= ])[^ ]+/\1***REDACTED***/g')
-		fi
+	# Safety net: --secret means a secret is in the args; use execute_occ_secret_command instead.
+	if echo "${*}" | grep -qE -- "--secret"; then
+		log_warning "execute_occ_command called with --secret; use execute_occ_secret_command instead. Delegating."
+		execute_occ_secret_command "${@}"
+		return $?
+	fi
 
-		# Log to stderr to avoid interfering with command output capture
-		echo "[i] Executing OCC command: ${_log_command}" >&2
-		# Write command to log file (also obscured)
-		echo "occ ${_log_command}" >> "${OCC_LOG_FILE}" 2>&1
+	if [ "${VERBOSE_OCC_LOGGING}" = "true" ]; then
+		echo "[i] Executing OCC command: ${*}" >&2
+		echo "occ ${*}" >> "${OCC_LOG_FILE}" 2>&1
 	fi
 
 	if ! php occ "${@}"; then
 		log_error "Failed to execute OCC command: ${*}"
+		return 1
+	fi
+}
+
+# Execute any OCC command that contains sensitive data.
+# Arguments are NOT logged to prevent accidental secret exposure.
+# For config:app:set the full command is logged with the --value payload replaced
+# by ***REDACTED***. For all other subcommands only the subcommand name is recorded.
+# Usage: execute_occ_secret_command <subcommand> [args...]
+execute_occ_secret_command() {
+	if [ "${VERBOSE_OCC_LOGGING}" = "true" ]; then
+		if [ "${1}" = "config:app:set" ]; then
+			_log_command=$(echo "${*}" | sed -E 's/(--value[= ]?)[^ ]+/\1***REDACTED***/g')
+			echo "[i] Executing OCC command: ${_log_command}" >&2
+			echo "occ ${_log_command}" >> "${OCC_LOG_FILE}" 2>&1
+		else
+			echo "[i] Executing sensitive OCC command: $1 [args not logged]" >&2
+			echo "occ $1 [args not logged]" >> "${OCC_LOG_FILE}" 2>&1
+		fi
+	fi
+
+	if ! php occ "${@}"; then
+		log_error "Failed to execute sensitive OCC command: $1 [args not logged]"
 		return 1
 	fi
 }
@@ -146,7 +180,7 @@ validate_env_vars() {
 # Expected types: string, integer, float, boolean, array
 # This function checks if the key exists with wrong type and deletes it before setting
 # Additional flags like --sensitive can be passed after the first 4 required arguments
-# Usage: set_app_config_typed myapp mykey myvalue string --sensitive
+# Usage: set_app_config_typed myapp mykey myvalue string
 set_app_config_typed() {
 	_app="${1}"
 	_key="${2}"
@@ -195,7 +229,7 @@ set_app_config_typed() {
 		esac
 	fi
 
-	# Set with correct type (pass through any additional flags like --sensitive)
+	# Set with correct type (pass through any additional flags)
 	execute_occ_command config:app:set "$@" --value "${_value}" --type "${_expected_type}" "${_app}" "${_key}"
 }
 
@@ -347,7 +381,7 @@ configure_files_antivirus_app() {
 configure_whiteboard_app() {
 	log_info "Configuring whiteboard app..."
 	execute_occ_command config:app:set whiteboard collabBackendUrl --value="${APP_WHITEBOARD_COLLABBACKEND_URL}:${APP_WHITEBOARD_COLLABBACKEND_PORT:-3002}"
-	execute_occ_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
+	execute_occ_secret_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
 }
 
 # Configure spreed app
@@ -383,7 +417,7 @@ configure_spreed_app() {
 	fi
 
 	# Add new signaling server
-	execute_occ_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
+	execute_occ_secret_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
 
 	# Configure TURN servers
 	turnList=$(execute_occ_command talk:turn:list --output=json_pretty 2>/dev/null || echo "")
@@ -397,11 +431,11 @@ configure_spreed_app() {
 	fi
 
 	log_info "Configuring new TURN server: ${TURN_SERVER_TCP_URL}"
-	execute_occ_command talk:turn:add turn "${TURN_SERVER_TCP_URL}" tcp --secret "${TURN_SERVER_SECRET}"
+	execute_occ_secret_command talk:turn:add turn "${TURN_SERVER_TCP_URL}" tcp --secret "${TURN_SERVER_SECRET}"
 
 	if [ "${TURN_SERVER_UDP_URL}" ]; then
 		log_info "Configuring TURN server: ${TURN_SERVER_UDP_URL}"
-		execute_occ_command talk:turn:add turn "${TURN_SERVER_UDP_URL}" udp --secret "${TURN_SERVER_SECRET}"
+		execute_occ_secret_command talk:turn:add turn "${TURN_SERVER_UDP_URL}" udp --secret "${TURN_SERVER_SECRET}"
 	else
 		log_info "Skipping TURN server configuration (TURN_SERVER_UDP_URL not set)"
 	fi
@@ -555,7 +589,7 @@ configure_ionos_mailconfig_api() {
 
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
-	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
+	execute_occ_secret_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --type string --sensitive mail ionos_mailconfig_api_auth_pass
 
 	execute_occ_command config:app:set --value yes --type string mail ionos-mailconfig-enabled
 }
@@ -576,7 +610,7 @@ configure_ionos_ai_model_hub() {
 	# Configure AI Model Hub settings for integration_openai app
 	# Using Bearer token authentication (JWT format)
 	execute_occ_command config:app:set --value "${IONOSAI_URL}" --type string integration_openai url
-	execute_occ_command config:app:set --value "${IONOSAI_TOKEN}" --sensitive --type string integration_openai api_key
+	execute_occ_secret_command config:app:set --value "${IONOSAI_TOKEN}" --type string --sensitive integration_openai api_key
 
 	# Configure max_tokens (app stores as string internally)
 	_max_tokens="${IONOSAI_MAX_TOKENS:-1000}"
