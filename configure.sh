@@ -376,7 +376,7 @@ configure_files_antivirus_app() {
 configure_whiteboard_app() {
 	log_info "Configuring whiteboard app..."
 	execute_occ_command config:app:set whiteboard collabBackendUrl --value="${APP_WHITEBOARD_COLLABBACKEND_URL}:${APP_WHITEBOARD_COLLABBACKEND_PORT:-3002}"
-	execute_occ_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
+	execute_occ_secret_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
 }
 
 # Configure spreed app
@@ -426,11 +426,11 @@ configure_spreed_app() {
 	fi
 
 	log_info "Configuring new TURN server: ${TURN_SERVER_TCP_URL}"
-	execute_occ_command talk:turn:add turn "${TURN_SERVER_TCP_URL}" tcp --secret "${TURN_SERVER_SECRET}"
+	execute_occ_secret_command talk:turn:add turn "${TURN_SERVER_TCP_URL}" tcp --secret "${TURN_SERVER_SECRET}"
 
 	if [ "${TURN_SERVER_UDP_URL}" ]; then
 		log_info "Configuring TURN server: ${TURN_SERVER_UDP_URL}"
-		execute_occ_command talk:turn:add turn "${TURN_SERVER_UDP_URL}" udp --secret "${TURN_SERVER_SECRET}"
+		execute_occ_secret_command talk:turn:add turn "${TURN_SERVER_UDP_URL}" udp --secret "${TURN_SERVER_SECRET}"
 	else
 		log_info "Skipping TURN server configuration (TURN_SERVER_UDP_URL not set)"
 	fi
@@ -584,7 +584,7 @@ configure_ionos_mailconfig_api() {
 
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
-	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
+	execute_occ_secret_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --type string --sensitive mail ionos_mailconfig_api_auth_pass
 
 	execute_occ_command config:app:set --value yes --type string mail ionos-mailconfig-enabled
 }
@@ -605,7 +605,7 @@ configure_ionos_ai_model_hub() {
 	# Configure AI Model Hub settings for integration_openai app
 	# Using Bearer token authentication (JWT format)
 	execute_occ_command config:app:set --value "${IONOSAI_URL}" --type string integration_openai url
-	execute_occ_command config:app:set --value "${IONOSAI_TOKEN}" --sensitive --type string integration_openai api_key
+	execute_occ_secret_command config:app:set --value "${IONOSAI_TOKEN}" --type string --sensitive integration_openai api_key
 
 	# Configure max_tokens (app stores as string internally)
 	_max_tokens="${IONOSAI_MAX_TOKENS:-1000}"
