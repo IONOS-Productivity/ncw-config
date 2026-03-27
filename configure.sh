@@ -122,17 +122,8 @@ execute_occ_command() {
 	fi
 
 	if [ "${VERBOSE_OCC_LOGGING}" = "true" ]; then
-		# Check if command contains --sensitive flag to obscure sensitive values
-		_log_command="${*}"
-		if echo "${*}" | grep -q -- "--sensitive"; then
-			# Obscure the value after --sensitive flag
-			_log_command=$(echo "${*}" | sed -E 's/(--value[= ])[^ ]+( .*--sensitive)/\1***REDACTED***\2/g; s/(--sensitive.*--value[= ])[^ ]+/\1***REDACTED***/g')
-		fi
-
-		# Log to stderr to avoid interfering with command output capture
-		echo "[i] Executing OCC command: ${_log_command}" >&2
-		# Write command to log file (also obscured)
-		echo "occ ${_log_command}" >> "${OCC_LOG_FILE}" 2>&1
+		echo "[i] Executing OCC command: ${*}" >&2
+		echo "occ ${*}" >> "${OCC_LOG_FILE}" 2>&1
 	fi
 
 	if ! php occ "${@}"; then
@@ -189,7 +180,7 @@ validate_env_vars() {
 # Expected types: string, integer, float, boolean, array
 # This function checks if the key exists with wrong type and deletes it before setting
 # Additional flags like --sensitive can be passed after the first 4 required arguments
-# Usage: set_app_config_typed myapp mykey myvalue string --sensitive
+# Usage: set_app_config_typed myapp mykey myvalue string
 set_app_config_typed() {
 	_app="${1}"
 	_key="${2}"
@@ -238,7 +229,7 @@ set_app_config_typed() {
 		esac
 	fi
 
-	# Set with correct type (pass through any additional flags like --sensitive)
+	# Set with correct type (pass through any additional flags)
 	execute_occ_command config:app:set "$@" --value "${_value}" --type "${_expected_type}" "${_app}" "${_key}"
 }
 
