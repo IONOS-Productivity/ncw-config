@@ -537,6 +537,13 @@ configure_ionos_mailconfig_api() {
 
 	execute_occ_command config:app:set --value no --type string mail ionos-mailconfig-enabled
 
+	# Skip mailconfig setup if mailbox creation is not possible for this instance
+	log_info "FUNCTIONAL_MAILBOX_POSSIBLE: ${FUNCTIONAL_MAILBOX_POSSIBLE}"
+	if [ "$FUNCTIONAL_MAILBOX_POSSIBLE" != "true" ]; then
+		log_info "FUNCTIONAL_MAILBOX_POSSIBLE is not 'true', ionos-mailconfig-enabled remains disabled"
+		return 0
+	fi
+
 	# Disable mailconfig if brand is not "IONOS"
 	log_info "BRAND: ${BRAND}"
 	if [ "$BRAND" != "IONOS" ]; then
