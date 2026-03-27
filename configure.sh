@@ -419,7 +419,7 @@ configure_spreed_app() {
 	fi
 
 	# Add new signaling server
-	execute_occ_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
+	execute_occ_secret_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
 
 	# Configure TURN servers
 	turnList=$(execute_occ_command talk:turn:list --output=json_pretty 2>/dev/null || echo "")
