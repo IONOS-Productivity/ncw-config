@@ -14,6 +14,9 @@ OCC_LOG_FILE=""
 # Plain output mode: no ANSI color codes (default on; use --color to enable colors)
 PLAIN_OUTPUT=true
 
+# Count of non-fatal errors accumulated via log_error; main() exits non-zero if > 0
+_ERROR_COUNT=0
+
 # Temp file for per-command timing data; populated in main()
 TIMING_LOG_FILE=""
 
@@ -66,6 +69,7 @@ user_saml:OCA\\User_SAML\\Settings\\Admin
 # Log error message to stderr
 # Usage: log_error <message>
 log_error() {
+	_ERROR_COUNT=$(( _ERROR_COUNT + 1 ))
 	if [ "${PLAIN_OUTPUT}" = "false" ]; then
 		echo "\033[1;31m[e] Error: ${*}\033[0m" >&2
 	else
@@ -911,6 +915,10 @@ main() {
 	configure_ionos_mailconfig_api
 
 	report_timing_stats
+
+	if [ "${_ERROR_COUNT}" -gt 0 ]; then
+		log_fatal "Configuration finished with ${_ERROR_COUNT} error(s) — see [e] lines above."
+	fi
 
 	log_success "Nextcloud Workspace configuration completed successfully!"
 }
