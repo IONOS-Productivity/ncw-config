@@ -111,10 +111,20 @@ log_success() {
 # Helper Functions
 #===============================================================================
 
-# Append one timing record to TIMING_LOG_FILE (tab-separated: seconds<TAB>label)
-# Usage: _record_timing <seconds> <label>
+# Append one timing record to TIMING_LOG_FILE (tab-separated: milliseconds<TAB>label)
+# Usage: _record_timing <milliseconds> <label>
 _record_timing() {
 	[ -n "${TIMING_LOG_FILE}" ] && printf '%s\t%s\n' "${1}" "${2}" >> "${TIMING_LOG_FILE}"
+}
+
+# Return current time in milliseconds.
+# Uses date +%s%3N (GNU date); falls back to seconds*1000 on busybox where %N is unsupported.
+_get_ms() {
+	_ts=$(date +%s%3N 2>/dev/null)
+	case "${_ts}" in
+		*[!0-9]*) printf '%d' "$(( $(date +%s) * 1000 ))" ;;
+		*)         printf '%s' "${_ts}" ;;
+	esac
 }
 
 #
@@ -157,10 +167,10 @@ execute_occ_command() {
 		echo "occ ${*}" >> "${OCC_LOG_FILE}" 2>&1
 	fi
 
-	_t_start=$(date +%s)
+	_t_start=$(_get_ms)
 	php occ "${@}"
 	_t_rc=$?
-	_record_timing "$(( $(date +%s) - _t_start ))" "${*}"
+	_record_timing "$(( $(_get_ms) - _t_start ))" "${*}"
 	if [ "${_t_rc}" -ne 0 ]; then
 		log_error "Failed to execute OCC command: ${*}"
 		return 1
@@ -177,10 +187,10 @@ execute_occ_secret_command() {
 		echo "occ $1 [args not logged]" >> "${OCC_LOG_FILE}" 2>&1
 	fi
 
-	_t_start=$(date +%s)
+	_t_start=$(_get_ms)
 	php occ "${@}"
 	_t_rc=$?
-	_record_timing "$(( $(date +%s) - _t_start ))" "${1}"
+	_record_timing "$(( $(_get_ms) - _t_start ))" "${1}"
 	if [ "${_t_rc}" -ne 0 ]; then
 		log_error "Failed to execute sensitive OCC command: $1 [args not logged]"
 		return 1
@@ -794,17 +804,32 @@ configure_apps() {
 # Main Execution Function
 #===============================================================================
 
-# Print timing summary: top 10 slowest OCC commands, sorted by duration descending
+# Print timing summary: per-subcommand aggregates (calls, total, avg, max), sorted by total desc
 # Usage: report_timing_stats
 report_timing_stats() {
 	[ -z "${TIMING_LOG_FILE}" ] || [ ! -s "${TIMING_LOG_FILE}" ] && return
 
 	echo ""
-	echo "=== OCC Command Timing (slowest first) ==="
-	sort -rn "${TIMING_LOG_FILE}" | head -10 | while IFS="$(printf '\t')" read -r _dur _cmd; do
-		printf "  %3ds  %s\n" "${_dur}" "${_cmd}"
-	done
-	echo "==========================================="
+	echo "=== OCC Command Timing ==="
+	printf "%-44s %5s %8s %7s %7s\n" "subcommand" "calls" "total" "avg" "max"
+
+	awk -F'\t' '
+	{
+		dur = $1 + 0
+		split($2, parts, " "); cmd = parts[1]
+		count[cmd]++
+		total[cmd] += dur
+		if (count[cmd] == 1 || dur > max[cmd]) max[cmd] = dur
+	}
+	END {
+		for (cmd in count) {
+			avg = int(total[cmd] / count[cmd])
+			printf "%d\t%d\t%d\t%d\t%s\n", total[cmd], count[cmd], avg, max[cmd], cmd
+		}
+	}' "${TIMING_LOG_FILE}" | sort -rn | \
+	awk -F'\t' '{ printf "%-44s %5d %7dms %6dms %6dms\n", $5, $2, $1, $3, $4 }'
+
+	echo "=========================="
 	rm -f "${TIMING_LOG_FILE}"
 }
 
