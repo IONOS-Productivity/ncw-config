@@ -459,12 +459,16 @@ configure_spreed_app() {
 	if [ -z "${_server_list}" ]; then
 		log_info "No existing signaling servers found"
 	else
-		echo "${_server_list}" | while IFS= read -r _existing_server; do
+		# Use here-document (not pipe) so the loop runs in the current shell,
+		# preserving variable mutations (e.g. _ERROR_COUNT) in the parent process.
+		while IFS= read -r _existing_server; do
 			if [ -n "${_existing_server}" ]; then
 				log_info "Removing existing signaling server: ${_existing_server}"
 				execute_occ_command talk:signaling:delete "${_existing_server}" || log_warning "Failed to delete signaling server: ${_existing_server}"
 			fi
-		done
+		done <<EOF
+${_server_list}
+EOF
 	fi
 
 	# Add new signaling server
@@ -474,9 +478,11 @@ configure_spreed_app() {
 	turnList=$(php occ talk:turn:list --output=json_pretty 2>/dev/null || echo "")
 	if [ -n "${turnList}" ]; then
 		log_info "Existing TURN servers found. Proceeding with deletion..."
-		echo "$turnList" | \
-		jq -r '.[] | [.schemes, .server, .protocols] | @tsv' | \
-		xargs -n 3 execute_occ_command talk:turn:delete
+		while IFS="$(printf '\t')" read -r _schemes _server _protocols; do
+			execute_occ_command talk:turn:delete "${_schemes}" "${_server}" "${_protocols}"
+		done <<EOF
+$(echo "$turnList" | jq -r '.[] | [.schemes, .server, .protocols] | @tsv')
+EOF
 	else
 		log_info "No existing TURN servers found. Nothing to delete."
 	fi
