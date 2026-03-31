@@ -893,7 +893,7 @@ main() {
 
 	# Initialize timing log and record script start (always-on)
 	SCRIPT_START_MS="$(_get_ms)"
-	TIMING_LOG_FILE="$(mktemp /tmp/occ-timing-XXXXXX.log)"
+	TIMING_LOG_FILE="/tmp/occ-timing-$$.log"
 	trap 'rm -f "${TIMING_LOG_FILE}"' EXIT INT TERM
 
 	log_info "Starting Nextcloud Workspace configuration process..."
