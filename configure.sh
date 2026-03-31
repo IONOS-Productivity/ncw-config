@@ -727,17 +727,10 @@ configure_apps() {
 	log_info "Configuring Nextcloud apps..."
 
 	# Enable core productivity apps
-	enable_app calendar "Calendar"
-	enable_app circles "Circles"
-	enable_app activity "Activity"
-	enable_app contacts "Contacts"
-	enable_app twofactor_totp "Two-Factor AuthenticationTOTP"
-	enable_app end_to_end_encryption "End-to-End Encryption"
-	enable_app mail "Mail"
-	enable_app notifications "Notifications"
-	enable_app tasks "Tasks"
-	enable_app text "Text"
-	enable_app ncw_apps_menu "NCW Apps Menu"
+	enable_apps \
+		calendar circles activity contacts twofactor_totp \
+		end_to_end_encryption mail notifications tasks text \
+		ncw_apps_menu
 
 	# Configure specialized apps
 
@@ -751,12 +744,9 @@ configure_apps() {
 	configure_spreed_app
 
 	# Enable additional apps
-	enable_app ncw_mailtemplate "NCW Mail Template"
-	enable_app groupfolders "Group Folders"
-	enable_app assistant "Assistant"
-	enable_app integration_openai "OpenAI Integration"
-	enable_app ncw_tools "Task Processing"
-	enable_app files_pdfviewer "Files-PdfViewer"
+	enable_apps \
+		ncw_mailtemplate groupfolders assistant \
+		integration_openai ncw_tools files_pdfviewer
 
 	# Configure admin features
 	configure_admin_delegation
