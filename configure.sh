@@ -17,6 +17,9 @@ PLAIN_OUTPUT=true
 # Temp file for per-command timing data; populated in main()
 TIMING_LOG_FILE=""
 
+# Script start time in milliseconds; set in main() for total wall-time reporting
+SCRIPT_START_MS=""
+
 # Read app lists from .list files
 read_app_list() {
 	# Read app list from file, ignoring comments and empty lines
@@ -829,6 +832,12 @@ report_timing_stats() {
 	}' "${TIMING_LOG_FILE}" | sort -rn | \
 	awk -F'\t' '{ printf "%-44s %5d %7dms %6dms %6dms\n", $5, $2, $1, $3, $4 }'
 
+	# Footer: total OCC time and total script wall time
+	_total_occ_ms=$(awk '{s += $1} END {print s+0}' "${TIMING_LOG_FILE}")
+	_total_script_ms="$(( $(_get_ms) - SCRIPT_START_MS ))"
+	printf -- "--------------------------\n"
+	printf "%-44s %5s %7dms\n" "total OCC time" "" "${_total_occ_ms}"
+	printf "%-44s %5s %7dms\n" "total script time" "" "${_total_script_ms}"
 	echo "=========================="
 	rm -f "${TIMING_LOG_FILE}"
 }
@@ -882,7 +891,8 @@ main() {
 	# Parse command line arguments first
 	parse_arguments "${@}"
 
-	# Initialize timing log (always-on; cleaned up by report_timing_stats)
+	# Initialize timing log and record script start (always-on)
+	SCRIPT_START_MS="$(_get_ms)"
 	TIMING_LOG_FILE="$(mktemp /tmp/occ-timing-XXXXXX.log)"
 	trap 'rm -f "${TIMING_LOG_FILE}"' EXIT INT TERM
 
