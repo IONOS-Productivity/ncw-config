@@ -209,6 +209,13 @@ enable_app() {
 	execute_occ_command app:enable "${_app_name}"
 }
 
+# Enable multiple Nextcloud apps in a single OCC call
+# Usage: enable_apps <app1> <app2> ...
+enable_apps() {
+	log_info "Enabling apps: ${*}"
+	execute_occ_command app:enable "${@}"
+}
+
 # Check if required dependencies are available
 # Usage: check_dependencies
 check_dependencies() {
