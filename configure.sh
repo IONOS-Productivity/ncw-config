@@ -340,7 +340,9 @@ configure_theming() {
 	execute_occ_command theming:config url ""
 
 	# Set homepage URL if configured
-	_ionos_homepage=$(execute_occ_command config:system:get ionos_homepage)
+	# Use php occ directly: config:system:get exits 1 when the key is absent,
+	# which is expected — routing through execute_occ_command would log a false error.
+	_ionos_homepage=$(php occ config:system:get ionos_homepage 2>/dev/null || true)
 	if [ -n "${_ionos_homepage}" ]; then
 		execute_occ_command theming:config url "${_ionos_homepage}"
 	fi
