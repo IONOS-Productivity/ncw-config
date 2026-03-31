@@ -11,6 +11,9 @@ VERBOSE_OCC_LOGGING=false
 # Log file for OCC commands (only used when VERBOSE_OCC_LOGGING=true)
 OCC_LOG_FILE=""
 
+# Plain output mode: no ANSI color codes (default on; use --color to enable colors)
+PLAIN_OUTPUT=true
+
 # Read app lists from .list files
 read_app_list() {
 	# Read app list from file, ignoring comments and empty lines
@@ -57,20 +60,32 @@ user_saml:OCA\\User_SAML\\Settings\\Admin
 # Log error message to stderr
 # Usage: log_error <message>
 log_error() {
-	echo "\033[1;31m[e] Error: ${*}\033[0m" >&2
+	if [ "${PLAIN_OUTPUT}" = "false" ]; then
+		echo "\033[1;31m[e] Error: ${*}\033[0m" >&2
+	else
+		echo "[e] Error: ${*}" >&2
+	fi
 }
 
 # Log fatal error message and exit with failure code
 # Usage: log_fatal <message>
 log_fatal() {
-	echo "\033[1;31m[x] Fatal Error: ${*}\033[0m" >&2
+	if [ "${PLAIN_OUTPUT}" = "false" ]; then
+		echo "\033[1;31m[x] Fatal Error: ${*}\033[0m" >&2
+	else
+		echo "[x] Fatal Error: ${*}" >&2
+	fi
 	exit 1
 }
 
 # Log warning message with yellow color
 # Usage: log_warning <message>
 log_warning() {
-	echo "\033[1;33m[w] Warning: ${*}\033[0m" >&2
+	if [ "${PLAIN_OUTPUT}" = "false" ]; then
+		echo "\033[1;33m[w] Warning: ${*}\033[0m" >&2
+	else
+		echo "[w] Warning: ${*}" >&2
+	fi
 }
 
 # Log info message
@@ -82,7 +97,11 @@ log_info() {
 # Log success message
 # Usage: log_success <message>
 log_success() {
-	echo "\033[1;32m[✓] ${*}\033[0m"
+	if [ "${PLAIN_OUTPUT}" = "false" ]; then
+		echo "\033[1;32m[ok] ${*}\033[0m"
+	else
+		echo "[ok] ${*}"
+	fi
 }
 
 #===============================================================================
@@ -775,6 +794,10 @@ parse_arguments() {
 				echo "" >> "${OCC_LOG_FILE}"
 				shift
 				;;
+			--color)
+				PLAIN_OUTPUT=false
+				shift
+				;;
 			-h|--help)
 				echo "Usage: ${0} [OPTIONS]"
 				echo ""
@@ -783,6 +806,7 @@ parse_arguments() {
 				echo "Options:"
 				echo "  -v, --verbose    Enable verbose OCC command logging"
 				echo "                   Logs will be saved to: occ-commands-<timestamp>.log"
+				echo "      --color      Enable ANSI color output (default: plain, for k9s/log aggregators)"
 				echo "  -h, --help       Display this help message"
 				echo ""
 				exit 0
