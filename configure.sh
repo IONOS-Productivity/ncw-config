@@ -209,6 +209,13 @@ enable_app() {
 	execute_occ_command app:enable "${_app_name}"
 }
 
+# Enable multiple Nextcloud apps in a single OCC call
+# Usage: enable_apps <app1> <app2> ...
+enable_apps() {
+	log_info "Enabling apps: ${*}"
+	execute_occ_command app:enable "${@}"
+}
+
 # Check if required dependencies are available
 # Usage: check_dependencies
 check_dependencies() {
@@ -218,6 +225,20 @@ check_dependencies() {
 
 	if ! which jq >/dev/null 2>&1; then
 		log_fatal "jq is required but not found in PATH"
+	fi
+}
+
+# Import app/system configuration from a JSON string via occ config:import.
+# Equivalent to piping a config:export-formatted JSON into occ config:import.
+# Usage: import_app_config <json_string>
+import_app_config() {
+	if [ "${VERBOSE_OCC_LOGGING}" = "true" ]; then
+		echo "[i] Executing OCC command: config:import" >&2
+		echo "occ config:import" >> "${OCC_LOG_FILE}" 2>&1
+	fi
+	if ! echo "${1}" | php occ config:import; then
+		log_error "Failed to execute OCC command: config:import"
+		return 1
 	fi
 }
 
@@ -277,22 +298,31 @@ configure_collabora_app() {
 
 	# Configure and enable Collabora
 	execute_occ_command app:enable richdocuments
-	execute_occ_command config:app:set richdocuments wopi_url --value="${COLLABORA_WOPI_URL}"
-	execute_occ_command config:app:set richdocuments public_wopi_url --value="${COLLABORA_WOPI_URL}"
-	execute_occ_command config:app:set richdocuments enabled --value='yes'
+
+	_cert_verify="no"
+	if [ "${COLLABORA_SELF_SIGNED}" = "true" ]; then
+		_cert_verify="yes"
+	fi
+
+	_config=$(jq -n \
+		--arg wopi_url "${COLLABORA_WOPI_URL}" \
+		--arg cert_verify "${_cert_verify}" \
+		'{apps: {richdocuments: {
+			wopi_url: $wopi_url,
+			public_wopi_url: $wopi_url,
+			enabled: "yes",
+			disable_certificate_verification: $cert_verify
+		}}}')
 
 	if [ "${COLLABORA_WOPI_ALLOWLIST}" ]; then
-		execute_occ_command config:app:set richdocuments wopi_allowlist --value="${COLLABORA_WOPI_ALLOWLIST}"
+		_config=$(echo "${_config}" | jq \
+			--arg allowlist "${COLLABORA_WOPI_ALLOWLIST}" \
+			'.apps.richdocuments.wopi_allowlist = $allowlist')
 	else
 		log_warning "COLLABORA_WOPI_ALLOWLIST environment variable is not set. Collabora WOPI allowlist will not be configured."
 	fi
 
-	# Configure SSL certificate verification
-	if [ "${COLLABORA_SELF_SIGNED}" = "true" ]; then
-		execute_occ_command config:app:set richdocuments disable_certificate_verification --value="yes"
-	else
-		execute_occ_command config:app:set richdocuments disable_certificate_verification --value="no"
-	fi
+	import_app_config "${_config}"
 
 	execute_occ_command richdocuments:activate-config
 }
@@ -331,11 +361,18 @@ configure_files_antivirus_app() {
 	fi
 
 	# Configure clamav with validated values
-	execute_occ_command config:app:set files_antivirus av_mode --value="daemon"
-	execute_occ_command config:app:set files_antivirus av_host --value="${CLAMAV_HOST:-clamav.clamav}"
-	execute_occ_command config:app:set files_antivirus av_port --value="${CLAMAV_PORT:-3310}"
-	execute_occ_command config:app:set files_antivirus av_max_file_size --value="${CLAMAV_MAX_FILE_SIZE:-314572800}"
-	execute_occ_command config:app:set files_antivirus av_stream_max_length --value="${CLAMAV_MAX_STREAM_LENGTH:-314572800}"
+	import_app_config "$(jq -n \
+		--arg host "${CLAMAV_HOST:-clamav.clamav}" \
+		--arg port "${CLAMAV_PORT:-3310}" \
+		--arg max_file_size "${CLAMAV_MAX_FILE_SIZE:-314572800}" \
+		--arg max_stream "${CLAMAV_MAX_STREAM_LENGTH:-314572800}" \
+		'{apps: {files_antivirus: {
+			av_mode: "daemon",
+			av_host: $host,
+			av_port: $port,
+			av_max_file_size: $max_file_size,
+			av_stream_max_length: $max_stream
+		}}}')"
 
 	execute_occ_command app:enable files_antivirus
 
@@ -553,8 +590,13 @@ configure_ionos_mailconfig_api() {
 	log_info "EXT_REF: ${EXT_REF}"
 	log_info "CUSTOMER_DOMAIN: ${CUSTOMER_DOMAIN}"
 
-	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
-	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
+	import_app_config "$(jq -n \
+		--arg url "${IONOS_MAILCONFIG_API_URL}" \
+		--arg user "${IONOS_MAILCONFIG_API_USER}" \
+		'{apps: {mail: {
+			ionos_mailconfig_api_base_url: $url,
+			ionos_mailconfig_api_auth_user: $user
+		}}}')"
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
 
 	execute_occ_command config:app:set --value yes --type string mail ionos-mailconfig-enabled
@@ -575,29 +617,26 @@ configure_ionos_ai_model_hub() {
 
 	# Configure AI Model Hub settings for integration_openai app
 	# Using Bearer token authentication (JWT format)
-	execute_occ_command config:app:set --value "${IONOSAI_URL}" --type string integration_openai url
+	import_app_config "$(jq -n \
+		--arg url "${IONOSAI_URL}" \
+		--arg max_tokens "${IONOSAI_MAX_TOKENS:-1000}" \
+		--arg use_max "${IONOSAI_USE_MAX_COMPLETION_TOKENS_PARAM:-0}" \
+		--arg text_model "${IONOSAI_TEXT_MODEL:-openai/gpt-oss-120b}" \
+		--arg image_model "${IONOSAI_IMAGE_MODEL:-black-forest-labs/FLUX.1-schnell}" \
+		'{apps: {
+			integration_openai: {
+				url: $url,
+				max_tokens: $max_tokens,
+				use_max_completion_tokens_param: $use_max,
+				default_completion_model_id: $text_model,
+				default_image_model_id: $image_model
+			},
+			settings: {"ai.taskprocessing_guests": "false"}
+		}}')"
 	execute_occ_command config:app:set --value "${IONOSAI_TOKEN}" --sensitive --type string integration_openai api_key
-
-	# Configure max_tokens (app stores as string internally)
-	_max_tokens="${IONOSAI_MAX_TOKENS:-1000}"
-	set_app_config_typed integration_openai max_tokens "${_max_tokens}" string
-
-	# Set use_max_completion_tokens_param (1=enabled, 0=disabled)
-	# Default is 0 for non-OpenAI services (app stores as string '1' or '0')
-	_use_max_completion_tokens_param="${IONOSAI_USE_MAX_COMPLETION_TOKENS_PARAM:-0}"
-	set_app_config_typed integration_openai use_max_completion_tokens_param "${_use_max_completion_tokens_param}" string
-
-	# Configure default text-to-text model
-	_text_model="${IONOSAI_TEXT_MODEL:-openai/gpt-oss-120b}"
-	execute_occ_command config:app:set --value "${_text_model}" --type string integration_openai default_completion_model_id
-
-	# Configure default text-to-image model
-	_image_model="${IONOSAI_IMAGE_MODEL:-black-forest-labs/FLUX.1-schnell}"
-	execute_occ_command config:app:set --value "${_image_model}" --type string integration_openai default_image_model_id
 
 	# Set AI assistant settings
 	log_info "Configuring AI Assistant settings... "
-	execute_occ_command config:app:set --value false settings ai.taskprocessing_guests
 
 	_deactivated_tasks="
 		core:generateemoji
@@ -688,17 +727,10 @@ configure_apps() {
 	log_info "Configuring Nextcloud apps..."
 
 	# Enable core productivity apps
-	enable_app calendar "Calendar"
-	enable_app circles "Circles"
-	enable_app activity "Activity"
-	enable_app contacts "Contacts"
-	enable_app twofactor_totp "Two-Factor AuthenticationTOTP"
-	enable_app end_to_end_encryption "End-to-End Encryption"
-	enable_app mail "Mail"
-	enable_app notifications "Notifications"
-	enable_app tasks "Tasks"
-	enable_app text "Text"
-	enable_app ncw_apps_menu "NCW Apps Menu"
+	enable_apps \
+		calendar circles activity contacts twofactor_totp \
+		end_to_end_encryption mail notifications tasks text \
+		ncw_apps_menu
 
 	# Configure specialized apps
 
@@ -712,12 +744,9 @@ configure_apps() {
 	configure_spreed_app
 
 	# Enable additional apps
-	enable_app ncw_mailtemplate "NCW Mail Template"
-	enable_app groupfolders "Group Folders"
-	enable_app assistant "Assistant"
-	enable_app integration_openai "OpenAI Integration"
-	enable_app ncw_tools "Task Processing"
-	enable_app files_pdfviewer "Files-PdfViewer"
+	enable_apps \
+		ncw_mailtemplate groupfolders assistant \
+		integration_openai ncw_tools files_pdfviewer
 
 	# Configure admin features
 	configure_admin_delegation
