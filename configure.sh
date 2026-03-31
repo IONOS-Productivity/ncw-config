@@ -610,29 +610,26 @@ configure_ionos_ai_model_hub() {
 
 	# Configure AI Model Hub settings for integration_openai app
 	# Using Bearer token authentication (JWT format)
-	execute_occ_command config:app:set --value "${IONOSAI_URL}" --type string integration_openai url
+	import_app_config "$(jq -n \
+		--arg url "${IONOSAI_URL}" \
+		--arg max_tokens "${IONOSAI_MAX_TOKENS:-1000}" \
+		--arg use_max "${IONOSAI_USE_MAX_COMPLETION_TOKENS_PARAM:-0}" \
+		--arg text_model "${IONOSAI_TEXT_MODEL:-openai/gpt-oss-120b}" \
+		--arg image_model "${IONOSAI_IMAGE_MODEL:-black-forest-labs/FLUX.1-schnell}" \
+		'{apps: {
+			integration_openai: {
+				url: $url,
+				max_tokens: $max_tokens,
+				use_max_completion_tokens_param: $use_max,
+				default_completion_model_id: $text_model,
+				default_image_model_id: $image_model
+			},
+			settings: {"ai.taskprocessing_guests": "false"}
+		}}')"
 	execute_occ_command config:app:set --value "${IONOSAI_TOKEN}" --sensitive --type string integration_openai api_key
-
-	# Configure max_tokens (app stores as string internally)
-	_max_tokens="${IONOSAI_MAX_TOKENS:-1000}"
-	set_app_config_typed integration_openai max_tokens "${_max_tokens}" string
-
-	# Set use_max_completion_tokens_param (1=enabled, 0=disabled)
-	# Default is 0 for non-OpenAI services (app stores as string '1' or '0')
-	_use_max_completion_tokens_param="${IONOSAI_USE_MAX_COMPLETION_TOKENS_PARAM:-0}"
-	set_app_config_typed integration_openai use_max_completion_tokens_param "${_use_max_completion_tokens_param}" string
-
-	# Configure default text-to-text model
-	_text_model="${IONOSAI_TEXT_MODEL:-openai/gpt-oss-120b}"
-	execute_occ_command config:app:set --value "${_text_model}" --type string integration_openai default_completion_model_id
-
-	# Configure default text-to-image model
-	_image_model="${IONOSAI_IMAGE_MODEL:-black-forest-labs/FLUX.1-schnell}"
-	execute_occ_command config:app:set --value "${_image_model}" --type string integration_openai default_image_model_id
 
 	# Set AI assistant settings
 	log_info "Configuring AI Assistant settings... "
-	execute_occ_command config:app:set --value false settings ai.taskprocessing_guests
 
 	_deactivated_tasks="
 		core:generateemoji
