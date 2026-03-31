@@ -583,8 +583,13 @@ configure_ionos_mailconfig_api() {
 	log_info "EXT_REF: ${EXT_REF}"
 	log_info "CUSTOMER_DOMAIN: ${CUSTOMER_DOMAIN}"
 
-	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
-	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
+	import_app_config "$(jq -n \
+		--arg url "${IONOS_MAILCONFIG_API_URL}" \
+		--arg user "${IONOS_MAILCONFIG_API_USER}" \
+		'{apps: {mail: {
+			ionos_mailconfig_api_base_url: $url,
+			ionos_mailconfig_api_auth_user: $user
+		}}}')"
 	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --sensitive --type string mail ionos_mailconfig_api_auth_pass
 
 	execute_occ_command config:app:set --value yes --type string mail ionos-mailconfig-enabled
