@@ -591,14 +591,16 @@ _process_app_delegations() {
 	fi
 
 	# Add delegations for this app
-	# Use newline as delimiter to properly handle class names with backslashes
-	echo "${_delegation_classes}" | while IFS= read -r _class; do
-		# Skip empty lines
+	# Use here-document (not pipe) so the loop runs in the current shell,
+	# preserving variable mutations (e.g. _ERROR_COUNT) in the parent process.
+	while IFS= read -r _class; do
 		if [ -n "${_class}" ]; then
 			log_info "Adding delegation for class: ${_class}"
 			execute_occ_command admin-delegation:add "${_class}" admin
 		fi
-	done
+	done <<EOF
+${_delegation_classes}
+EOF
 
 	# Disable app if it was temporarily enabled
 	if [ "${_should_disable}" = true ]; then
