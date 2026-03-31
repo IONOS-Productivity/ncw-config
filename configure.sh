@@ -471,8 +471,8 @@ configure_spreed_app() {
 	execute_occ_secret_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
 
 	# Configure TURN servers
-	turnList=$(execute_occ_command talk:turn:list --output=json_pretty 2>/dev/null || echo "")
-	if [ -z "${turnList}" ]; then
+	turnList=$(php occ talk:turn:list --output=json_pretty 2>/dev/null || echo "")
+	if [ -n "${turnList}" ]; then
 		log_info "Existing TURN servers found. Proceeding with deletion..."
 		echo "$turnList" | \
 		jq -r '.[] | [.schemes, .server, .protocols] | @tsv' | \
