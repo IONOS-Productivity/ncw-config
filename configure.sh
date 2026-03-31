@@ -291,22 +291,31 @@ configure_collabora_app() {
 
 	# Configure and enable Collabora
 	execute_occ_command app:enable richdocuments
-	execute_occ_command config:app:set richdocuments wopi_url --value="${COLLABORA_WOPI_URL}"
-	execute_occ_command config:app:set richdocuments public_wopi_url --value="${COLLABORA_WOPI_URL}"
-	execute_occ_command config:app:set richdocuments enabled --value='yes'
+
+	_cert_verify="no"
+	if [ "${COLLABORA_SELF_SIGNED}" = "true" ]; then
+		_cert_verify="yes"
+	fi
+
+	_config=$(jq -n \
+		--arg wopi_url "${COLLABORA_WOPI_URL}" \
+		--arg cert_verify "${_cert_verify}" \
+		'{apps: {richdocuments: {
+			wopi_url: $wopi_url,
+			public_wopi_url: $wopi_url,
+			enabled: "yes",
+			disable_certificate_verification: $cert_verify
+		}}}')
 
 	if [ "${COLLABORA_WOPI_ALLOWLIST}" ]; then
-		execute_occ_command config:app:set richdocuments wopi_allowlist --value="${COLLABORA_WOPI_ALLOWLIST}"
+		_config=$(echo "${_config}" | jq \
+			--arg allowlist "${COLLABORA_WOPI_ALLOWLIST}" \
+			'.apps.richdocuments.wopi_allowlist = $allowlist')
 	else
 		log_warning "COLLABORA_WOPI_ALLOWLIST environment variable is not set. Collabora WOPI allowlist will not be configured."
 	fi
 
-	# Configure SSL certificate verification
-	if [ "${COLLABORA_SELF_SIGNED}" = "true" ]; then
-		execute_occ_command config:app:set richdocuments disable_certificate_verification --value="yes"
-	else
-		execute_occ_command config:app:set richdocuments disable_certificate_verification --value="no"
-	fi
+	import_app_config "${_config}"
 
 	execute_occ_command richdocuments:activate-config
 }
