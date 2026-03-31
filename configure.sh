@@ -354,11 +354,18 @@ configure_files_antivirus_app() {
 	fi
 
 	# Configure clamav with validated values
-	execute_occ_command config:app:set files_antivirus av_mode --value="daemon"
-	execute_occ_command config:app:set files_antivirus av_host --value="${CLAMAV_HOST:-clamav.clamav}"
-	execute_occ_command config:app:set files_antivirus av_port --value="${CLAMAV_PORT:-3310}"
-	execute_occ_command config:app:set files_antivirus av_max_file_size --value="${CLAMAV_MAX_FILE_SIZE:-314572800}"
-	execute_occ_command config:app:set files_antivirus av_stream_max_length --value="${CLAMAV_MAX_STREAM_LENGTH:-314572800}"
+	import_app_config "$(jq -n \
+		--arg host "${CLAMAV_HOST:-clamav.clamav}" \
+		--arg port "${CLAMAV_PORT:-3310}" \
+		--arg max_file_size "${CLAMAV_MAX_FILE_SIZE:-314572800}" \
+		--arg max_stream "${CLAMAV_MAX_STREAM_LENGTH:-314572800}" \
+		'{apps: {files_antivirus: {
+			av_mode: "daemon",
+			av_host: $host,
+			av_port: $port,
+			av_max_file_size: $max_file_size,
+			av_stream_max_length: $max_stream
+		}}}')"
 
 	execute_occ_command app:enable files_antivirus
 
