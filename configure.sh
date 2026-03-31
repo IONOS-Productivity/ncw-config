@@ -221,6 +221,20 @@ check_dependencies() {
 	fi
 }
 
+# Import app/system configuration from a JSON string via occ config:import.
+# Equivalent to piping a config:export-formatted JSON into occ config:import.
+# Usage: import_app_config <json_string>
+import_app_config() {
+	if [ "${VERBOSE_OCC_LOGGING}" = "true" ]; then
+		echo "[i] Executing OCC command: config:import" >&2
+		echo "occ config:import" >> "${OCC_LOG_FILE}" 2>&1
+	fi
+	if ! echo "${1}" | php occ config:import; then
+		log_error "Failed to execute OCC command: config:import"
+		return 1
+	fi
+}
+
 # Verify Nextcloud Workspace installation status
 # Usage: verify_nextcloud_installation
 verify_nextcloud_installation() {
