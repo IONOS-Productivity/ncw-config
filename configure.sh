@@ -14,6 +14,9 @@ OCC_LOG_FILE=""
 # Plain output mode: no ANSI color codes (default on; use --color to enable colors)
 PLAIN_OUTPUT=true
 
+# Temp file for per-command timing data; populated in main()
+TIMING_LOG_FILE=""
+
 # Read app lists from .list files
 read_app_list() {
 	# Read app list from file, ignoring comments and empty lines
@@ -107,6 +110,13 @@ log_success() {
 #===============================================================================
 # Helper Functions
 #===============================================================================
+
+# Append one timing record to TIMING_LOG_FILE (tab-separated: seconds<TAB>label)
+# Usage: _record_timing <seconds> <label>
+_record_timing() {
+	[ -n "${TIMING_LOG_FILE}" ] && printf '%s\t%s\n' "${1}" "${2}" >> "${TIMING_LOG_FILE}"
+}
+
 #
 # OCC Helper Conventions — Sensitive Data
 # ----------------------------------------
@@ -147,7 +157,11 @@ execute_occ_command() {
 		echo "occ ${*}" >> "${OCC_LOG_FILE}" 2>&1
 	fi
 
-	if ! php occ "${@}"; then
+	_t_start=$(date +%s)
+	php occ "${@}"
+	_t_rc=$?
+	_record_timing "$(( $(date +%s) - _t_start ))" "${*}"
+	if [ "${_t_rc}" -ne 0 ]; then
 		log_error "Failed to execute OCC command: ${*}"
 		return 1
 	fi
@@ -163,7 +177,11 @@ execute_occ_secret_command() {
 		echo "occ $1 [args not logged]" >> "${OCC_LOG_FILE}" 2>&1
 	fi
 
-	if ! php occ "${@}"; then
+	_t_start=$(date +%s)
+	php occ "${@}"
+	_t_rc=$?
+	_record_timing "$(( $(date +%s) - _t_start ))" "${1}"
+	if [ "${_t_rc}" -ne 0 ]; then
 		log_error "Failed to execute sensitive OCC command: $1 [args not logged]"
 		return 1
 	fi
@@ -776,6 +794,20 @@ configure_apps() {
 # Main Execution Function
 #===============================================================================
 
+# Print timing summary: top 10 slowest OCC commands, sorted by duration descending
+# Usage: report_timing_stats
+report_timing_stats() {
+	[ -z "${TIMING_LOG_FILE}" ] || [ ! -s "${TIMING_LOG_FILE}" ] && return
+
+	echo ""
+	echo "=== OCC Command Timing (slowest first) ==="
+	sort -rn "${TIMING_LOG_FILE}" | head -10 | while IFS="$(printf '\t')" read -r _dur _cmd; do
+		printf "  %3ds  %s\n" "${_dur}" "${_cmd}"
+	done
+	echo "==========================================="
+	rm -f "${TIMING_LOG_FILE}"
+}
+
 # Parse command line arguments
 # Usage: parse_arguments [args...]
 parse_arguments() {
@@ -825,6 +857,10 @@ main() {
 	# Parse command line arguments first
 	parse_arguments "${@}"
 
+	# Initialize timing log (always-on; cleaned up by report_timing_stats)
+	TIMING_LOG_FILE="$(mktemp /tmp/occ-timing-XXXXXX.log)"
+	trap 'rm -f "${TIMING_LOG_FILE}"' EXIT INT TERM
+
 	log_info "Starting Nextcloud Workspace configuration process..."
 
 	# Perform initial checks
@@ -836,6 +872,8 @@ main() {
 	disable_configured_apps
 	configure_apps
 	configure_ionos_mailconfig_api
+
+	report_timing_stats
 
 	log_success "Nextcloud Workspace configuration completed successfully!"
 }
