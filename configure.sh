@@ -609,7 +609,12 @@ _process_app_delegations() {
 	_existing_delegations=$(php occ admin-delegation:show --output=json 2>/dev/null || echo "[]")
 	while IFS= read -r _class; do
 		if [ -n "${_class}" ]; then
-			if echo "${_existing_delegations}" | grep -qF "${_class}"; then
+			if jq -e --arg class "${_class}" \
+				'[.[].settings[].className] | contains([$class])' \
+				>/dev/null 2>&1 <<EOF
+${_existing_delegations}
+EOF
+			then
 				log_info "Delegation for class '${_class}' already exists, skipping"
 			else
 				log_info "Adding delegation for class: ${_class}"
