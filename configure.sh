@@ -606,7 +606,11 @@ _process_app_delegations() {
 	# Fetch existing delegations once to avoid errors on re-runs.
 	# Use here-document (not pipe) so the loop runs in the current shell,
 	# preserving variable mutations (e.g. _ERROR_COUNT) in the parent process.
-	_existing_delegations=$(execute_occ_command admin-delegation:show --output=json 2>/dev/null || echo "[]")
+	_previous_error_count="${_ERROR_COUNT}"
+	if ! _existing_delegations=$(execute_occ_command admin-delegation:show --output=json 2>/dev/null); then
+		_ERROR_COUNT="${_previous_error_count}"
+		_existing_delegations="[]"
+	fi
 	while IFS= read -r _delegation_class; do
 		if [ -n "${_delegation_class}" ]; then
 			if jq -e --arg class "${_delegation_class}" \
