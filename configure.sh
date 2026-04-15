@@ -610,7 +610,7 @@ _process_app_delegations() {
 	while IFS= read -r _class; do
 		if [ -n "${_class}" ]; then
 			if jq -e --arg class "${_class}" \
-				'[.[].settings[].className] | contains([$class])' \
+				'any(.[].settings[]; .className == $class and (.delegatedGroups | contains(["admin"])))' \
 				>/dev/null 2>&1 <<EOF
 ${_existing_delegations}
 EOF
