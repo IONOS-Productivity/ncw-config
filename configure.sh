@@ -607,18 +607,18 @@ _process_app_delegations() {
 	# Use here-document (not pipe) so the loop runs in the current shell,
 	# preserving variable mutations (e.g. _ERROR_COUNT) in the parent process.
 	_existing_delegations=$(php occ admin-delegation:show --output=json 2>/dev/null || echo "[]")
-	while IFS= read -r _class; do
-		if [ -n "${_class}" ]; then
-			if jq -e --arg class "${_class}" \
+	while IFS= read -r _delegation_class; do
+		if [ -n "${_delegation_class}" ]; then
+			if jq -e --arg class "${_delegation_class}" \
 				'any(.[].settings[]; .className == $class and (.delegatedGroups | contains(["admin"])))' \
 				>/dev/null 2>&1 <<EOF
 ${_existing_delegations}
 EOF
 			then
-				log_info "Delegation for class '${_class}' already exists, skipping"
+				log_info "Delegation for class '${_delegation_class}' already exists, skipping"
 			else
-				log_info "Adding delegation for class: ${_class}"
-				execute_occ_command admin-delegation:add "${_class}" admin
+				log_info "Adding delegation for class: ${_delegation_class}"
+				execute_occ_command admin-delegation:add "${_delegation_class}" admin
 			fi
 		fi
 	done <<EOF
