@@ -615,7 +615,7 @@ _process_app_delegations() {
 ${_existing_delegations}
 EOF
 			then
-				log_info "Delegation for class '${_delegation_class}' already exists, skipping"
+				log_info "Delegation for class '${_delegation_class}' to group 'admin' already exists, skipping"
 			else
 				log_info "Adding delegation for class: ${_delegation_class}"
 				execute_occ_command admin-delegation:add "${_delegation_class}" admin
