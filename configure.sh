@@ -70,11 +70,7 @@ user_saml:OCA\\User_SAML\\Settings\\Admin
 # Usage: log_error <message>
 log_error() {
 	_ERROR_COUNT=$(( _ERROR_COUNT + 1 ))
-	if [ "${PLAIN_OUTPUT}" = "false" ]; then
-		echo "\033[1;31m[e] Error: ${*}\033[0m" >&2
-	else
-		echo "[e] Error: ${*}" >&2
-	fi
+	printf '\033[1;31m[e] Error: %s\033[0m\n' "${*}" >&2
 }
 
 # Log fatal error message and exit with failure code
