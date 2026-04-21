@@ -668,6 +668,15 @@ configure_ionos_mailconfig_api() {
 	execute_occ_command config:app:set --value yes --type string mail ionos-mailconfig-enabled
 }
 
+# Configure mail app settings
+# Usage: configure_mail_app
+configure_mail_app() {
+	log_info "Configuring mail app..."
+
+	enable_app mail "Mail"
+	execute_occ_command config:app:set --value no --type string mail allow_new_mail_aliases
+}
+
 # Configure IONOS AI Model Hub with API credentials
 # Usage: configure_ionos_ai_model_hub
 configure_ionos_ai_model_hub() {
@@ -802,7 +811,6 @@ configure_apps() {
 	enable_app contacts "Contacts"
 	enable_app twofactor_totp "Two-Factor AuthenticationTOTP"
 	enable_app end_to_end_encryption "End-to-End Encryption"
-	enable_app mail "Mail"
 	enable_app notifications "Notifications"
 	enable_app tasks "Tasks"
 	enable_app text "Text"
@@ -813,6 +821,7 @@ configure_apps() {
 	# currently disabled; enable again after removal from removed-apps.txt
 	# configure_files_antivirus_app
 
+	configure_mail_app
 	configure_viewer_app
 	configure_collabora_app
 	configure_notify_push_app
