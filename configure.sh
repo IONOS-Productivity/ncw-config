@@ -674,7 +674,8 @@ configure_mail_app() {
 	log_info "Configuring mail app..."
 
 	enable_app mail "Mail"
-	execute_occ_command config:app:set --value no --type string mail allow_new_mail_aliases
+	# save allow_new_mail_aliases as mixed type in order to be compatible wih legacy code
+	execute_occ_command config:app:set mail allow_new_mail_aliases --value=no
 }
 
 # Configure IONOS AI Model Hub with API credentials
