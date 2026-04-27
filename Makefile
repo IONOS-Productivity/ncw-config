@@ -36,7 +36,7 @@ FULL_BUILD_APPS = \
 	deck \
 	end_to_end_encryption \
 	files_pdfviewer \
-	gdata_antivirus \
+	gdatavaas \
 	groupfolders \
 	integration_openai \
 	mail \
