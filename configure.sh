@@ -431,8 +431,9 @@ configure_files_antivirus_app() {
 # Usage: configure_whiteboard_app
 configure_whiteboard_app() {
 	log_info "Configuring whiteboard app..."
-	if [ "${APP_WHITEBOARD_COLLABBACKEND_PORT:-3002}" != "-" ]; then	
-		APP_WHITEBOARD_COLLABBACKEND_URL=${APP_WHITEBOARD_COLLABBACKEND_URL}:${APP_WHITEBOARD_COLLABBACKEND_PORT}
+	_collab_backend_port="${APP_WHITEBOARD_COLLABBACKEND_PORT:-3002}"
+	if [ "${_collab_backend_port}" != "-" ]; then
+		APP_WHITEBOARD_COLLABBACKEND_URL="${APP_WHITEBOARD_COLLABBACKEND_URL}:${_collab_backend_port}"
 	fi
 	execute_occ_command config:app:set whiteboard collabBackendUrl --value="${APP_WHITEBOARD_COLLABBACKEND_URL}"
 	execute_occ_secret_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
