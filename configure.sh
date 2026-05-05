@@ -431,6 +431,7 @@ configure_files_antivirus_app() {
 # Usage: configure_whiteboard_app
 configure_whiteboard_app() {
 	log_info "Configuring whiteboard app..."
+	# Fallback: Default value for port is "-" if port is not set
 	_collab_backend_port="${APP_WHITEBOARD_COLLABBACKEND_PORT:-3002}"
 	if [ "${_collab_backend_port}" != "-" ]; then
 		APP_WHITEBOARD_COLLABBACKEND_URL="${APP_WHITEBOARD_COLLABBACKEND_URL}:${_collab_backend_port}"
