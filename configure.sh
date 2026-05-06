@@ -56,6 +56,7 @@ settings:OCA\\Settings\\Settings\\Admin\\Security
 systemtags:OCA\\SystemTags\\Settings\\Admin
 user_ldap:OCA\\User_LDAP\\Settings\\Admin
 activity:OCA\\Activity\\Settings\\Admin
+theming:OCA\\Theming\\Settings\\AdminLegalUrls
 bruteforcesettings:OCA\\BruteForceSettings\\Settings\\IPWhitelist
 user_oidc:OCA\\UserOIDC\\Settings\\AdminSettings
 files_external:OCA\\Files_External\\Settings\\Admin
