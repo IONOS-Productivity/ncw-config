@@ -56,6 +56,7 @@ settings:OCA\\Settings\\Settings\\Admin\\Security
 systemtags:OCA\\SystemTags\\Settings\\Admin
 user_ldap:OCA\\User_LDAP\\Settings\\Admin
 activity:OCA\\Activity\\Settings\\Admin
+theming:OCA\\Theming\\Settings\\AdminLegalUrls
 bruteforcesettings:OCA\\BruteForceSettings\\Settings\\IPWhitelist
 user_oidc:OCA\\UserOIDC\\Settings\\AdminSettings
 files_external:OCA\\Files_External\\Settings\\Admin
@@ -329,8 +330,16 @@ verify_nextcloud_installation() {
 configure_theming() {
 	log_info "Configuring Nextcloud Workspace theming..."
 
-	execute_occ_command theming:config imprintUrl ""
-	execute_occ_command theming:config privacyUrl ""
+	if [ -n "${THEMING_IMPRINT_URL}" ]; then
+		execute_occ_command config:app:set theming imprintUrlDefault --value "${THEMING_IMPRINT_URL}"
+	else
+		log_warning "THEMING_IMPRINT_URL environment variable is not set, skipping imprintUrlDefault configuration"
+	fi
+	if [ -n "${THEMING_PRIVACY_URL}" ]; then
+		execute_occ_command config:app:set theming privacyUrlDefault --value "${THEMING_PRIVACY_URL}"
+	else
+		log_warning "THEMING_PRIVACY_URL environment variable is not set, skipping privacyUrlDefault configuration"
+	fi
 	execute_occ_command theming:config primary_color "#003D8F"
 	execute_occ_command config:app:set --value "#ffffff" -- theming background_color
 	set_app_config_typed theming disable-user-theming true boolean
