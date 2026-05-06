@@ -436,7 +436,7 @@ configure_whiteboard_app() {
 	if [ "${_collab_backend_port}" != "-" ]; then
 		APP_WHITEBOARD_COLLABBACKEND_URL="${APP_WHITEBOARD_COLLABBACKEND_URL}:${_collab_backend_port}"
 	fi
-	execute_occ_secret_command config:app:set whiteboard collabBackendUrl --sensitive --value="${APP_WHITEBOARD_COLLABBACKEND_URL}"
+	execute_occ_command config:app:set whiteboard collabBackendUrl --value="${APP_WHITEBOARD_COLLABBACKEND_URL}"
 	execute_occ_secret_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
 }
 
