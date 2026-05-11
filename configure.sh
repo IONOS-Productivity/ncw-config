@@ -329,8 +329,40 @@ verify_nextcloud_installation() {
 configure_theming() {
 	log_info "Configuring Nextcloud Workspace theming..."
 
-	execute_occ_command theming:config imprintUrl ""
-	execute_occ_command theming:config privacyUrl ""
+	# Set legal URLs based on market
+	case "${MARKET}" in
+		DE)
+			IMPRINT_URL="https://wl.hidrive.com/ionos/0020"
+			PRIVACY_URL="https://wl.hidrive.com/ionos/0040"
+			;;
+		UK)
+			IMPRINT_URL="https://wl.hidrive.com/ionos/0021"
+			PRIVACY_URL="https://wl.hidrive.com/ionos/0041"
+			;;
+		ES)
+			IMPRINT_URL="https://wl.hidrive.com/ionos/0024"
+			PRIVACY_URL="https://wl.hidrive.com/ionos/0044"
+			;;
+		FR)
+			IMPRINT_URL="https://wl.hidrive.com/ionos/0025"
+			PRIVACY_URL="https://wl.hidrive.com/ionos/0045"
+			;;
+		IT)
+			IMPRINT_URL="https://wl.hidrive.com/ionos/0026"
+			PRIVACY_URL="https://wl.hidrive.com/ionos/0046"
+			;;
+		*)
+			# Default to DE if MARKET is unset or invalid
+			IMPRINT_URL="https://wl.hidrive.com/ionos/0020"
+			PRIVACY_URL="https://wl.hidrive.com/ionos/0040"
+			log_warning "MARKET not set or invalid (${MARKET}), defaulting to DE legal URLs"
+			;;
+	esac
+
+	log_info "Setting legal URLs for market ${MARKET}: imprintUrl=${IMPRINT_URL}, privacyUrl=${PRIVACY_URL}"
+
+	execute_occ_command theming:config imprintUrl "${IMPRINT_URL}"
+	execute_occ_command theming:config privacyUrl "${PRIVACY_URL}"
 	execute_occ_command theming:config primary_color "#003D8F"
 	execute_occ_command config:app:set --value "#ffffff" -- theming background_color
 	set_app_config_typed theming disable-user-theming true boolean
