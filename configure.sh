@@ -362,8 +362,8 @@ configure_theming() {
 
 	log_info "Setting legal URLs for market ${MARKET}: imprintUrl=${IMPRINT_URL}, privacyUrl=${PRIVACY_URL}"
 
-	execute_occ_command theming:config imprintUrlDefault "${IMPRINT_URL}"
-	execute_occ_command theming:config privacyUrlDefault "${PRIVACY_URL}"
+	execute_occ_command config:app:set imprintUrlDefault --value "${IMPRINT_URL}"
+	execute_occ_command config:app:set privacyUrlDefault --value "${PRIVACY_URL}"
 	execute_occ_command theming:config primary_color "#003D8F"
 	execute_occ_command config:app:set --value "#ffffff" -- theming background_color
 	set_app_config_typed theming disable-user-theming true boolean
