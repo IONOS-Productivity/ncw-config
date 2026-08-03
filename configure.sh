@@ -412,7 +412,12 @@ configure_collabora_app() {
 		execute_occ_command config:app:set richdocuments disable_certificate_verification --value="no"
 	fi
 
+	_prev_err="${_ERROR_COUNT}"
 	execute_occ_command richdocuments:activate-config
+	if [ "${_ERROR_COUNT}" -gt "${_prev_err}" ]; then
+		_ERROR_COUNT="${_prev_err}"
+		log_warning "richdocuments:activate-config failed — Collabora connectivity check is non-fatal. Configuration will be retried on next reconcile."
+	fi
 }
 
 # Configure notify_push app
@@ -526,11 +531,21 @@ EOF
 	fi
 
 	log_info "Configuring new TURN server: ${TURN_SERVER_TCP_URL}"
+	_prev_err="${_ERROR_COUNT}"
 	execute_occ_secret_command talk:turn:add turn "${TURN_SERVER_TCP_URL}" tcp --secret "${TURN_SERVER_SECRET}"
+	if [ "${_ERROR_COUNT}" -gt "${_prev_err}" ]; then
+		_ERROR_COUNT="${_prev_err}"
+		log_warning "talk:turn:add (TCP) failed — TURN server configuration is non-fatal. Will be retried on next reconcile."
+	fi
 
 	if [ "${TURN_SERVER_UDP_URL}" ]; then
 		log_info "Configuring TURN server: ${TURN_SERVER_UDP_URL}"
+		_prev_err="${_ERROR_COUNT}"
 		execute_occ_secret_command talk:turn:add turn "${TURN_SERVER_UDP_URL}" udp --secret "${TURN_SERVER_SECRET}"
+		if [ "${_ERROR_COUNT}" -gt "${_prev_err}" ]; then
+			_ERROR_COUNT="${_prev_err}"
+			log_warning "talk:turn:add (UDP) failed — TURN server configuration is non-fatal. Will be retried on next reconcile."
+		fi
 	else
 		log_info "Skipping TURN server configuration (TURN_SERVER_UDP_URL not set)"
 	fi
