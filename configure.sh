@@ -205,6 +205,21 @@ execute_occ_secret_command() {
 	fi
 }
 
+# Run an OCC command with up to 3 attempts on failure
+# Returns: 0 on success, 1 after all attempts are exhausted
+retry_occ() {
+	_retry_attempt=1
+	while [ "${_retry_attempt}" -le 3 ]; do
+		if _RETRY_OUTPUT=$(php occ "${@}"); then
+			return 0
+		fi
+		log_warning "occ ${1} failed (attempt ${_retry_attempt}/3)"
+		_retry_attempt=$(( _retry_attempt + 1 ))
+		[ "${_retry_attempt}" -le 3 ] && sleep 2
+	done
+	return 1
+}
+
 # Validate required environment variables
 # Usage: validate_env_vars <var1> <var2> ...
 # Returns: 0 if all variables are set, 1 otherwise
@@ -412,12 +427,7 @@ configure_collabora_app() {
 		execute_occ_command config:app:set richdocuments disable_certificate_verification --value="no"
 	fi
 
-	_prev_err="${_ERROR_COUNT}"
 	execute_occ_command richdocuments:activate-config
-	if [ "${_ERROR_COUNT}" -gt "${_prev_err}" ]; then
-		_ERROR_COUNT="${_prev_err}"
-		log_warning "richdocuments:activate-config failed — Collabora connectivity check is non-fatal. Configuration will be retried on next reconcile."
-	fi
 }
 
 # Configure notify_push app
@@ -496,7 +506,11 @@ configure_spreed_app() {
 	log_info "Configuring talk signaling server: ${HPB_URL}"
 
 	# Remove existing signaling servers
-	_server_list=$(execute_occ_command talk:signaling:list --output=json_pretty | jq -r '.servers[].server' 2>/dev/null | sort -u || echo "")
+	if ! retry_occ talk:signaling:list --output=json_pretty; then
+		log_error "Failed to retrieve signaling server list. Aborting signaling servers configuration"
+		return 1
+	fi
+	_server_list=$(echo "${_RETRY_OUTPUT}" | jq -r '.servers[].server' | sort -u)
 	echo "_server_list: $_server_list"
 
 	if [ -z "${_server_list}" ]; then
@@ -518,10 +532,13 @@ EOF
 	execute_occ_secret_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
 
 	# Configure TURN servers
-	if ! turnList=$(php occ talk:turn:list --output=json_pretty); then
-		log_error "Failed to retrieve TURN server list. TURN server cannot be configured."
+	# Propagate errors: if talk:turn:list fails we must not proceed, as we cannot
+	# safely determine which servers to delete before adding new ones.
+	if ! retry_occ talk:turn:list --output=json_pretty; then
+		log_error "Failed to retrieve TURN server list. Aborting TURN server configuration"
 		return 1
 	fi
+	turnList="${_RETRY_OUTPUT}"
 	if [ -n "${turnList}" ]; then
 		log_info "Existing TURN servers found. Proceeding with deletion..."
 		while IFS="$(printf '\t')" read -r _schemes _server _protocols; do
@@ -534,21 +551,11 @@ EOF
 	fi
 
 	log_info "Configuring new TURN server: ${TURN_SERVER_TCP_URL}"
-	_prev_err="${_ERROR_COUNT}"
 	execute_occ_secret_command talk:turn:add turn "${TURN_SERVER_TCP_URL}" tcp --secret "${TURN_SERVER_SECRET}"
-	if [ "${_ERROR_COUNT}" -gt "${_prev_err}" ]; then
-		_ERROR_COUNT="${_prev_err}"
-		log_warning "talk:turn:add (TCP) failed — TURN server configuration is non-fatal. Will be retried on next reconcile."
-	fi
 
 	if [ "${TURN_SERVER_UDP_URL}" ]; then
 		log_info "Configuring TURN server: ${TURN_SERVER_UDP_URL}"
-		_prev_err="${_ERROR_COUNT}"
 		execute_occ_secret_command talk:turn:add turn "${TURN_SERVER_UDP_URL}" udp --secret "${TURN_SERVER_SECRET}"
-		if [ "${_ERROR_COUNT}" -gt "${_prev_err}" ]; then
-			_ERROR_COUNT="${_prev_err}"
-			log_warning "talk:turn:add (UDP) failed — TURN server configuration is non-fatal. Will be retried on next reconcile."
-		fi
 	else
 		log_info "Skipping TURN server configuration (TURN_SERVER_UDP_URL not set)"
 	fi
