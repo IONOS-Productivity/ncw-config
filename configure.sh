@@ -518,7 +518,10 @@ EOF
 	execute_occ_secret_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
 
 	# Configure TURN servers
-	turnList=$(php occ talk:turn:list --output=json_pretty 2>/dev/null || echo "")
+	if ! turnList=$(php occ talk:turn:list --output=json_pretty); then
+		log_error "Failed to retrieve TURN server list. TURN server cannot be configured."
+		return 1
+	fi
 	if [ -n "${turnList}" ]; then
 		log_info "Existing TURN servers found. Proceeding with deletion..."
 		while IFS="$(printf '\t')" read -r _schemes _server _protocols; do
