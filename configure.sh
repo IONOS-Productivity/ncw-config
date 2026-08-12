@@ -518,34 +518,34 @@ EOF
 	execute_occ_secret_command talk:signaling:add "${HPB_URL}" "${HPB_SECRET}"
 
 	# Configure TURN servers
-	turnList=$(php occ talk:turn:list --output=json_pretty 2>/dev/null || echo "")
-	if [ -n "${turnList}" ]; then
+	# Retrieve the current list before making any changes. Failure here means
+	# we cannot know what already exists, so we must abort: silently skipping
+	# the deletion and proceeding to add would fail with "already exists" and
+	# produce spurious errors rather than exposing the real problem.
+	log_info "Retrieving existing TURN server list..."
+	if ! turnList=$(php occ talk:turn:list --output=json_pretty); then
+		log_error "talk:turn:list failed. Cannot safely configure TURN servers without knowing the current state."
+		return 1
+	fi
+
+	_turn_entries=$(echo "${turnList}" | jq -r '.[] | [.schemes, .server, .protocols] | @tsv' 2>/dev/null)
+	if [ -n "${_turn_entries}" ]; then
 		log_info "Existing TURN servers found. Proceeding with deletion..."
 		while IFS="$(printf '\t')" read -r _schemes _server _protocols; do
 			execute_occ_command talk:turn:delete "${_schemes}" "${_server}" "${_protocols}"
 		done <<EOF
-$(echo "$turnList" | jq -r '.[] | [.schemes, .server, .protocols] | @tsv')
+${_turn_entries}
 EOF
 	else
 		log_info "No existing TURN servers found. Nothing to delete."
 	fi
 
 	log_info "Configuring new TURN server: ${TURN_SERVER_TCP_URL}"
-	_prev_err="${_ERROR_COUNT}"
 	execute_occ_secret_command talk:turn:add turn "${TURN_SERVER_TCP_URL}" tcp --secret "${TURN_SERVER_SECRET}"
-	if [ "${_ERROR_COUNT}" -gt "${_prev_err}" ]; then
-		_ERROR_COUNT="${_prev_err}"
-		log_warning "talk:turn:add (TCP) failed — TURN server configuration is non-fatal. Will be retried on next reconcile."
-	fi
 
 	if [ "${TURN_SERVER_UDP_URL}" ]; then
 		log_info "Configuring TURN server: ${TURN_SERVER_UDP_URL}"
-		_prev_err="${_ERROR_COUNT}"
 		execute_occ_secret_command talk:turn:add turn "${TURN_SERVER_UDP_URL}" udp --secret "${TURN_SERVER_SECRET}"
-		if [ "${_ERROR_COUNT}" -gt "${_prev_err}" ]; then
-			_ERROR_COUNT="${_prev_err}"
-			log_warning "talk:turn:add (UDP) failed — TURN server configuration is non-fatal. Will be retried on next reconcile."
-		fi
 	else
 		log_info "Skipping TURN server configuration (TURN_SERVER_UDP_URL not set)"
 	fi
