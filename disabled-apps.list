@@ -9,3 +9,7 @@ workflowengine
 files_fulltextsearch
 fulltextsearch
 fulltextsearch_elasticsearch
+
+# richdocuments (Collabora) is not used; Eurooffice is used instead
+# requires the richdocuments app to still be present in the workdir
+richdocuments
