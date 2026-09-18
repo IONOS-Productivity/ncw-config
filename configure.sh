@@ -488,6 +488,30 @@ configure_whiteboard_app() {
 	execute_occ_secret_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
 }
 
+# Select and configure one document editor app based on DOCUMENT_APP env var.
+# Disables the inactive app and configures the active one.
+# DOCUMENT_APP: "eurooffice" (default) | "richdocuments"
+# Usage: configure_document_app
+configure_document_app() {
+	_selected_doc_app="${DOCUMENT_APP:-eurooffice}"
+	log_info "Configuring document app (DOCUMENT_APP=${_selected_doc_app})..."
+
+	case "${_selected_doc_app}" in
+		eurooffice)
+			execute_occ_command app:disable richdocuments
+			configure_eurooffice_app
+			;;
+		richdocuments)
+			execute_occ_command app:disable eurooffice
+			configure_collabora_app
+			;;
+		*)
+			log_error "Unknown DOCUMENT_APP value: '${_selected_doc_app}'. Valid values: eurooffice, richdocuments"
+			return 1
+			;;
+	esac
+}
+
 # Configure eurooffice app
 # Usage: configure_eurooffice_app
 configure_eurooffice_app() {
@@ -921,7 +945,7 @@ configure_apps() {
 
 	configure_mail_app
 	configure_viewer_app
-	configure_collabora_app
+	configure_document_app
 	configure_notify_push_app
 	configure_whiteboard_app
 	configure_spreed_app
