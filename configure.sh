@@ -788,6 +788,7 @@ configure_ionos_ai_model_hub() {
 	_deactivated_tasks="
 		core:generateemoji
 		core:audio2text
+		core:text2speech
 		assistant:text2sticker
 		integration_openai:text2speech
 		integration_openai:analyze-images
