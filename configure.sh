@@ -488,6 +488,32 @@ configure_whiteboard_app() {
 	execute_occ_secret_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
 }
 
+# Configure eurooffice app
+# Usage: configure_eurooffice_app
+configure_eurooffice_app() {
+	log_info "Configuring eurooffice app..."
+
+	enable_app eurooffice "Euro-Office"
+
+	if ! validate_env_vars APP_EUROOFFICE_DOCUMENT_SERVER_URL APP_EUROOFFICE_JWT_SECRET; then
+		log_warning "eurooffice app configuration skipped due to missing environment variables"
+		return 0
+	fi
+
+	execute_occ_command config:app:set eurooffice DocumentServerUrl --value="${APP_EUROOFFICE_DOCUMENT_SERVER_URL}"
+	execute_occ_secret_command config:app:set eurooffice jwt_secret --sensitive --value="${APP_EUROOFFICE_JWT_SECRET}"
+
+	# StorageUrl: URL the document server uses to fetch files from Nextcloud.
+	# Set this when the document server cannot reach Nextcloud via the public URL
+	# (e.g. dev: document server in pasta networking needs host.containers.internal).
+	if [ -n "${APP_EUROOFFICE_STORAGE_URL:-}" ]; then
+		log_info "Setting eurooffice StorageUrl: ${APP_EUROOFFICE_STORAGE_URL}"
+		execute_occ_command config:app:set eurooffice StorageUrl --value="${APP_EUROOFFICE_STORAGE_URL}"
+	fi
+
+	log_info "eurooffice app configured with DocumentServerUrl: ${APP_EUROOFFICE_DOCUMENT_SERVER_URL}"
+}
+
 # Configure spreed app
 # Usage: configure_spreed_app
 configure_spreed_app() {
@@ -893,7 +919,7 @@ configure_apps() {
 
 	configure_mail_app
 	configure_viewer_app
-	configure_collabora_app
+	configure_eurooffice_app
 	configure_notify_push_app
 	configure_whiteboard_app
 	configure_spreed_app
