@@ -77,6 +77,7 @@ NOTHING_TO_BUILD_APPS = \
 # Apps with special build targets (not in the standard categories above)
 # These apps have dedicated build_<app>_app targets with custom build logic
 SPECIAL_BUILD_APPS = \
+	gdatavaas \
 	notify_push
 
 # App folders to add to shipped.json (makes apps non-removable)
@@ -262,6 +263,42 @@ $(NOTIFY_PUSH_BINARY): $(NOTIFY_PUSH_DIR)/appinfo/info.xml
 	@echo "[i] Binary SHA256: $$(sha256sum $@ | cut -d' ' -f1)"
 	chmod +x $@
 	@echo "[i] notify_push binary v$(NOTIFY_PUSH_VERSION) downloaded and verified successfully"
+
+# gdatavaas app target with php-scoper namespace scoping
+# amphp/amp v3 (used by gdata/vaas) conflicts with amphp/amp v2 (used by mail via rubix/ml).
+# php-scoper rewrites vendor namespaces (e.g. Amp\ -> OCA\GDataVaas\Vendor\Amp\) to avoid conflicts.
+GDATAVAAS_DIR = apps-external/gdatavaas
+GDATAVAAS_SCOPED_DIR = $(GDATAVAAS_DIR)/build/scoped
+PHP_SCOPER_PHAR = $(GDATAVAAS_DIR)/build/php-scoper.phar
+PHP_SCOPER_VERSION = 0.18.17
+
+$(PHP_SCOPER_PHAR):
+	@mkdir -p $(dir $(PHP_SCOPER_PHAR))
+	@echo "[i] Downloading php-scoper $(PHP_SCOPER_VERSION) PHAR..."
+	@curl -sL -o $(PHP_SCOPER_PHAR) \
+		https://github.com/humbug/php-scoper/releases/download/$(PHP_SCOPER_VERSION)/php-scoper.phar
+	@chmod +x $(PHP_SCOPER_PHAR)
+
+build_gdatavaas_app: $(PHP_SCOPER_PHAR) ## Build gdatavaas app with php-scoper namespace isolation
+	@echo "[i] Building gdatavaas app..."
+	@cd $(GDATAVAAS_DIR) && \
+		$(COMPOSER_INSTALL) && \
+		$(NPM_INSTALL) && \
+		$(NPM_BUILD)
+	@echo "[i] Running php-scoper to isolate vendor namespaces..."
+	@rm -rf $(GDATAVAAS_SCOPED_DIR)
+	@cd $(GDATAVAAS_DIR) && \
+		php build/php-scoper.phar add-prefix --output-dir=build/scoped --force --quiet
+	@echo "[i] Regenerating autoloader for scoped build..."
+	@composer dump-autoload --working-dir $(GDATAVAAS_SCOPED_DIR) --classmap-authoritative --quiet
+	@echo "[i] Replacing original sources with scoped versions..."
+	@rm -rf $(GDATAVAAS_DIR)/lib.orig $(GDATAVAAS_DIR)/vendor.orig
+	@mv $(GDATAVAAS_DIR)/lib $(GDATAVAAS_DIR)/lib.orig
+	@mv $(GDATAVAAS_DIR)/vendor $(GDATAVAAS_DIR)/vendor.orig
+	@mv $(GDATAVAAS_SCOPED_DIR)/lib $(GDATAVAAS_DIR)/lib
+	@mv $(GDATAVAAS_SCOPED_DIR)/vendor $(GDATAVAAS_DIR)/vendor
+	@rm -rf $(GDATAVAAS_DIR)/lib.orig $(GDATAVAAS_DIR)/vendor.orig $(GDATAVAAS_SCOPED_DIR)
+	@echo "[✓] gdatavaas app built successfully with scoped namespaces"
 
 build_notify_push_app: $(NOTIFY_PUSH_DIR)/vendor/autoload.php $(NOTIFY_PUSH_BINARY) ## Install and build notify_push app
 	@echo "[i] notify_push app built successfully"
