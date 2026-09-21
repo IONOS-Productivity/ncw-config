@@ -61,6 +61,8 @@ bruteforcesettings:OCA\\BruteForceSettings\\Settings\\IPWhitelist
 user_oidc:OCA\\UserOIDC\\Settings\\AdminSettings
 files_external:OCA\\Files_External\\Settings\\Admin
 user_saml:OCA\\User_SAML\\Settings\\Admin
+eurooffice:OCA\\Eurooffice\\AdminSettingsTemplates
+eurooffice:OCA\\Eurooffice\\AdminSettingsSecurity
 "
 
 #===============================================================================
