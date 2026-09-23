@@ -496,13 +496,14 @@ configure_document_app() {
 	_selected_doc_app="${DOCUMENT_APP:-eurooffice}"
 	log_info "Configuring document app (DOCUMENT_APP=${_selected_doc_app})..."
 
+	disable_single_app richdocuments
+	disable_single_app eurooffice
+
 	case "${_selected_doc_app}" in
 		eurooffice)
-			execute_occ_command app:disable richdocuments
 			configure_eurooffice_app
 			;;
 		richdocuments)
-			execute_occ_command app:disable eurooffice
 			configure_collabora_app
 			;;
 		*)
