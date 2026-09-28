@@ -398,40 +398,6 @@ configure_theming() {
 	fi
 }
 
-# Configure Collabora/richdocuments integration
-# Usage: configure_collabora_app
-configure_collabora_app() {
-	log_info "Configuring Collabora integration..."
-	# Disable app initially
-	execute_occ_command app:disable richdocuments
-
-	# Validate required environment variables
-	if ! [ "${COLLABORA_WOPI_URL}" ]; then
-		log_fatal "COLLABORA_WOPI_URL environment variable is not set"
-	fi
-
-	# Configure and enable Collabora
-	execute_occ_command app:enable richdocuments
-	execute_occ_command config:app:set richdocuments wopi_url --value="${COLLABORA_WOPI_URL}"
-	execute_occ_command config:app:set richdocuments public_wopi_url --value="${COLLABORA_WOPI_URL}"
-	execute_occ_command config:app:set richdocuments enabled --value='yes'
-
-	if [ "${COLLABORA_WOPI_ALLOWLIST}" ]; then
-		execute_occ_command config:app:set richdocuments wopi_allowlist --value="${COLLABORA_WOPI_ALLOWLIST}"
-	else
-		log_warning "COLLABORA_WOPI_ALLOWLIST environment variable is not set. Collabora WOPI allowlist will not be configured."
-	fi
-
-	# Configure SSL certificate verification
-	if [ "${COLLABORA_SELF_SIGNED}" = "true" ]; then
-		execute_occ_command config:app:set richdocuments disable_certificate_verification --value="yes"
-	else
-		execute_occ_command config:app:set richdocuments disable_certificate_verification --value="no"
-	fi
-
-	execute_occ_command richdocuments:activate-config
-}
-
 # Configure notify_push app
 # Usage: configure_notify_push_app
 configure_notify_push_app() {
@@ -490,9 +456,8 @@ configure_whiteboard_app() {
 	execute_occ_secret_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
 }
 
-# Select and configure one document editor app based on DOCUMENT_APP env var.
-# Disables the inactive app and configures the active one.
-# DOCUMENT_APP: "eurooffice" (default) | "richdocuments"
+# Select and configure the document editor app based on DOCUMENT_APP env var.
+# DOCUMENT_APP: "eurooffice" (default)
 # Usage: configure_document_app
 configure_document_app() {
 	_selected_doc_app="${DOCUMENT_APP:-eurooffice}"
@@ -505,11 +470,8 @@ configure_document_app() {
 		eurooffice)
 			configure_eurooffice_app
 			;;
-		richdocuments)
-			configure_collabora_app
-			;;
 		*)
-			log_error "Unknown DOCUMENT_APP value: '${_selected_doc_app}'. Valid values: eurooffice, richdocuments"
+			log_error "Unknown DOCUMENT_APP value: '${_selected_doc_app}'. Valid values: eurooffice"
 			return 1
 			;;
 	esac
