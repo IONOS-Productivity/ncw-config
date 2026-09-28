@@ -1,0 +1,15 @@
+{
+  "epub": false,
+  "fb2":  false,
+  "html": false,
+  "odt":  false,
+  "ott":  false,
+  "rtf":  false,
+  "txt":  true,
+  "csv":  true,
+  "ods":  false,
+  "ots":  false,
+  "tsv":  false,
+  "odp":  false,
+  "otp":  false
+}
