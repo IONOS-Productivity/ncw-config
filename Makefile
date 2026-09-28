@@ -43,7 +43,6 @@ FULL_BUILD_APPS = \
 	ncw_apps_menu \
 	notes \
 	notifications \
-	richdocuments \
 	spreed \
 	tables \
 	tasks \
