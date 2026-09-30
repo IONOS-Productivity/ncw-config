@@ -518,6 +518,8 @@ configure_eurooffice_app() {
 		execute_occ_command config:app:set eurooffice StorageUrl --value="${APP_EUROOFFICE_STORAGE_URL}"
 	fi
 
+	execute_occ_command config:app:set eurooffice customizationFeedback --value=false
+
 	log_info "eurooffice app configured with DocumentServerUrl: ${APP_EUROOFFICE_DOCUMENT_SERVER_URL}"
 }
 
