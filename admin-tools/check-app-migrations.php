@@ -25,47 +25,49 @@ const EXIT_FINDINGS = 1;
 const EXIT_USAGE = 2;
 
 function usage(): string {
-	return <<<'TXT'
-Usage:
-  check-app-migrations.php [--app APP] [--app-path DIR] --db
-  check-app-migrations.php --all --db
-  check-app-migrations.php [--app APP] [--app-path DIR] \
-                           --applied FILE --schema FILE
-  check-app-migrations.php [--app APP] --db --dump-applied > applied.txt
-  check-app-migrations.php --db --dump-schema > schema.txt
+	$text = <<<'TXT'
+|Usage:
+|  check-app-migrations.php [--app APP] [--app-path DIR] --db
+|  check-app-migrations.php --all --db
+|  check-app-migrations.php [--app APP] [--app-path DIR] \
+|                           --applied FILE --schema FILE
+|  check-app-migrations.php [--app APP] --db --dump-applied > applied.txt
+|  check-app-migrations.php --db --dump-schema > schema.txt
 
-Options:
-  --app APP        App id (default: spreed)
-  --all            Check every app that has rows in the migrations table (with --db);
-                   an overview table and details only for apps with findings
-  --app-path DIR   App directory (default: found via apps_paths of the Nextcloud
-                   config, else apps/, apps-external/, custom_apps/)
-  --db             Read applied list and schema from the database
-  --applied FILE   Applied versions, one per line (e.g. 23000Date20251030090219)
-  --schema FILE    Schema dump as produced by --dump-schema
-  --dump-applied   Print the applied versions of APP and exit
-  --dump-schema    Print the live schema (table/column/index names) and exit
-  --since-nc N     Only migrations written after Nextcloud N was branched (stable N cut from
-                   master), i.e. what an upgrade from N to a later release should have run,
-                   e.g. --since-nc 31 for the 31 -> 32 -> 33 path. Known: 28 to 33.
-  --strict         Treat "not verifiable" migrations as findings too
-  --verbose        Also list verified and superseded schema effects
-  -h, --help       This help
+|Options:
+|  --app APP        App id (default: spreed)
+|  --all            Check every app that has rows in the migrations table (with --db);
+|                   an overview table and details only for apps with findings
+|  --app-path DIR   App directory (default: found via apps_paths of the Nextcloud
+|                   config, else apps/, apps-external/, custom_apps/)
+|  --db             Read applied list and schema from the database
+|  --applied FILE   Applied versions, one per line (e.g. 23000Date20251030090219)
+|  --schema FILE    Schema dump as produced by --dump-schema
+|  --dump-applied   Print the applied versions of APP and exit
+|  --dump-schema    Print the live schema (table/column/index names) and exit
+|  --since-nc N     Only migrations written after Nextcloud N was branched (stable N cut from
+|                   master), i.e. what an upgrade from N to a later release should have run,
+|                   e.g. --since-nc 31 for the 31 -> 32 -> 33 path. Known: 28 to 33.
+|  --strict         Treat "not verifiable" migrations as findings too
+|  --verbose        Also list verified and superseded schema effects
+|  -h, --help       This help
 
-Database connection: taken from the Nextcloud config (config/config.php and
-config/*.config.php), nothing is passed on the command line or printed.
-  --config DIR     Nextcloud config directory (default: $NEXTCLOUD_CONFIG_DIR, else the
-                   config/ of the Nextcloud root this script lives in; not the current directory)
-  --sqlite-file F  sqlite only: use this file instead of <datadirectory>/owncloud.db
+|Database connection: taken from the Nextcloud config (config/config.php and
+|config/*.config.php), nothing is passed on the command line or printed.
+|  --config DIR     Nextcloud config directory (default: $NEXTCLOUD_CONFIG_DIR, else the
+|                   config/ of the Nextcloud root this script lives in; not the current directory)
+|  --sqlite-file F  sqlite only: use this file instead of <datadirectory>/owncloud.db
 
-Expected migrations: the Version*.php files in DIR/lib/Migration, i.e. what is
-deployed in the app directory.
+|Expected migrations: the Version*.php files in DIR/lib/Migration, i.e. what is
+|deployed in the app directory.
 
-Schema dump format, whitespace separated, real (prefixed) table names:
-  column <table> <column>
-  index  <table> <index-name> <col1,col2,...>      (primary key: PRIMARY)
+|Schema dump format, whitespace separated, real (prefixed) table names:
+|  column <table> <column>
+|  index  <table> <index-name> <col1,col2,...>      (primary key: PRIMARY)
 
 TXT;
+	// The leading | keeps indentation in the source free of spaces (tabs only, see .editorconfig).
+	return preg_replace('/^\|/m', '', $text);
 }
 
 function fail(string $message, int $code = EXIT_USAGE): never {
@@ -1115,10 +1117,10 @@ function migrationDir(string $app, string $ncRoot, ?string $appPath, array $conf
 
 /**
  * Compare one app's migrations with the live state and print the report.
+ * The returned text is the compact --all block for the app, empty when the app is clean.
  * @param array<string,string> $expected version => php source
  * @param array<string,true> $applied
  * @return array{bad:bool,never:int,noeffect:int,unverifiable:int,verified:int,expected:int,text:string}
- *         text is the compact (--all) block for this app, empty when the app is clean
  */
 function checkApp(string $app, array $expected, array $applied, array $schema, string $prefix, string $source, bool $verbose, bool $strict, bool $compact, ?Closure $inScope = null, array &$fixes = []): array {
 	$neverApplied = [];
