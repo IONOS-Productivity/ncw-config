@@ -37,7 +37,7 @@ Usage:
 Options:
   --app APP        App id (default: spreed)
   --all            Check every app that has rows in the migrations table (with --db);
-                   clean apps get one line, details only for apps with findings
+                   an overview table and details only for apps with findings
   --app-path DIR   App directory (default: found via apps_paths of the Nextcloud
                    config, else apps/, apps-external/, custom_apps/)
   --db             Read applied list and schema from the database
@@ -584,7 +584,7 @@ final class EffectExtractor {
 		}
 		if ($this->mentions($start, $j)) {
 			$this->touch($start, $j);
-			$this->reason('schema changes inside ' . strtolower(token_name((int)$this->T[$start]['t'])) . ' are not verifiable', $start);
+			$this->reason('schema changes inside ' . strtolower(substr(token_name((int)$this->T[$start]['t']), 2)) . ' are not verifiable', $start);
 		}
 		return $j;
 	}
@@ -1083,9 +1083,10 @@ function migrationDir(string $app, string $ncRoot, ?string $appPath, array $conf
  * Compare one app's migrations with the live state and print the report.
  * @param array<string,string> $expected version => php source
  * @param array<string,true> $applied
- * @return bool true if something is missing or not in effect
+ * @return array{bad:bool,never:int,noeffect:int,unverifiable:int,verified:int,expected:int,text:string}
+ *         text is the compact (--all) block for this app, empty when the app is clean
  */
-function checkApp(string $app, array $expected, array $applied, array $schema, string $prefix, string $source, bool $verbose, bool $strict, bool $compact, ?Closure $inScope = null, array &$fixes = []): bool {
+function checkApp(string $app, array $expected, array $applied, array $schema, string $prefix, string $source, bool $verbose, bool $strict, bool $compact, ?Closure $inScope = null, array &$fixes = []): array {
 	$neverApplied = [];
 	$notInApp = [];
 	foreach (array_keys($expected) as $v) {
@@ -1162,15 +1163,23 @@ function checkApp(string $app, array $expected, array $applied, array $schema, s
 	if ($toRun !== []) {
 		$fixes[$app] = $toRun;
 	}
-	if ($compact && !$bad) {
-		echo "app=$app OK expected=" . count($expected) . ' not_verifiable=' . count($unverifiable) . "\n";
-		if (!$verbose) {
-			return false;
+	$stats = [
+		'bad' => $bad,
+		'never' => count($neverApplied),
+		'noeffect' => count($notInEffect),
+		'unverifiable' => count($unverifiable),
+		'verified' => array_sum(array_map('count', $verified)),
+		'expected' => count($expected),
+		'text' => '',
+	];
+	if ($compact) {
+		if ($bad || $verbose) {
+			$stats['text'] = compactBlock($app, $neverApplied, $notInEffect, $unverifiable, $notInApp, $verified, $superseded, $verbose);
 		}
-	} else {
-		echo "app=$app prefix=$prefix source=$source\n";
-		echo 'expected=' . count($expected) . ' applied=' . count($applied) . "\n\n";
+		return $stats;
 	}
+	echo "app=$app prefix=$prefix source=$source\n";
+	echo 'expected=' . count($expected) . ' applied=' . count($applied) . "\n\n";
 
 	echo '== Never applied (' . count($neverApplied) . ") ==\n";
 	foreach ($neverApplied as $v) {
@@ -1185,9 +1194,6 @@ function checkApp(string $app, array $expected, array $applied, array $schema, s
 	}
 	echo "\n== Not verifiable (" . count($unverifiable) . ") ==\n";
 	foreach ($unverifiable as $v => $reasons) {
-		if ($compact && !$verbose) {
-			break;
-		}
 		echo "app='$app', version='$v'" . (isset($verified[$v]) || isset($notInEffect[$v]) ? ' (partially verified)' : '') . "\n";
 		foreach ($reasons as $r) {
 			echo "    $r\n";
@@ -1219,7 +1225,88 @@ function checkApp(string $app, array $expected, array $applied, array $schema, s
 	echo "\nsummary: never_applied=" . count($neverApplied) . ' not_in_effect=' . count($notInEffect)
 		. ' not_verifiable=' . count($unverifiable) . " effects_verified=$nVerified\n";
 
-	return $bad;
+	return $stats;
+}
+
+/**
+ * Overview for --all: totals, a table of the apps with findings, their details, then the clean apps.
+ * @param array<string,array<string,mixed>> $results
+ */
+function printOverview(array $results, string $prefix, string $source, array $opts): void {
+	$bad = array_filter($results, static fn (array $r): bool => $r['bad']);
+	$ok = array_diff_key($results, $bad);
+	$scope = isset($opts['since-nc']) ? 'migrations after Nextcloud ' . $opts['since-nc'] . ' branched' : 'all migrations';
+	echo "Migration check: source=$source prefix=$prefix scope=$scope\n";
+	echo 'Apps checked: ' . count($results) . ', with findings: ' . count($bad) . ', clean: ' . count($ok) . "\n\n";
+
+	if ($bad !== []) {
+		$width = max(array_map('strlen', array_keys($bad)));
+		echo "== Apps with findings ==\n";
+		printf("  %-{$width}s  %12s  %13s  %14s\n", 'app', 'never applied', 'not in effect', 'not verifiable');
+		foreach ($bad as $name => $r) {
+			printf("  %-{$width}s  %12d  %13d  %14d\n", $name, $r['never'], $r['noeffect'], $r['unverifiable']);
+		}
+		echo "\n== Details ==\n";
+		foreach ($bad as $r) {
+			echo $r['text'] . "\n";
+		}
+	}
+	$detailsOfClean = array_filter($ok, static fn (array $r): bool => $r['text'] !== '');
+	foreach ($detailsOfClean as $r) {
+		echo $r['text'] . "\n";
+	}
+	if ($ok !== []) {
+		echo '== Clean apps (' . count($ok) . ") ==\n";
+		echo wordwrap('  ' . implode(', ', array_keys($ok)), 100, "\n  ") . "\n\n";
+	}
+}
+
+/** Per-app detail block for --all: only what is wrong, versions with their problems underneath. */
+function compactBlock(string $app, array $never, array $notInEffect, array $unverifiable, array $notInApp, array $verified, array $superseded, bool $verbose): string {
+	$out = "$app\n";
+	if ($never !== []) {
+		$out .= "  Never applied:\n";
+		foreach ($never as $v) {
+			$out .= "    $v\n";
+		}
+	}
+	if ($notInEffect !== []) {
+		$out .= "  Applied but not in effect:\n";
+		foreach ($notInEffect as $v => $problems) {
+			$out .= "    $v\n";
+			foreach ($problems as $p) {
+				$out .= "        - $p\n";
+			}
+		}
+	}
+	if ($unverifiable !== []) {
+		if ($verbose) {
+			$out .= "  Not verifiable:\n";
+			foreach ($unverifiable as $v => $reasons) {
+				$out .= "    $v" . (isset($verified[$v]) || isset($notInEffect[$v]) ? ' (partially verified)' : '') . "\n";
+				foreach ($reasons as $r) {
+					$out .= "        - $r\n";
+				}
+			}
+		} else {
+			$out .= '  Not verifiable: ' . count($unverifiable) . " (use --verbose to list)\n";
+		}
+	}
+	if ($notInApp !== []) {
+		$out .= '  Applied but not in the app directory (informational): ' . implode(', ', $notInApp) . "\n";
+	}
+	if ($verbose) {
+		foreach (['Verified in effect' => $verified, 'Not checked (superseded or possibly changed later)' => $superseded] as $title => $groups) {
+			$out .= "  $title:\n";
+			foreach ($groups as $v => $list) {
+				$out .= "    $v\n";
+				foreach ($list as $d) {
+					$out .= "        - $d\n";
+				}
+			}
+		}
+	}
+	return $out;
 }
 
 // ---------------------------------------------------------------------------
@@ -1297,6 +1384,7 @@ function main(array $argv): int {
 	$bad = false;
 	$skipped = [];
 	$fixes = [];
+	$results = [];
 	foreach ($appliedByApp as $name => $applied) {
 		$dir = migrationDir($name, $ncRoot, $all ? null : $appPath, $cfgForLookup);
 		if ($dir === null || !is_dir($dir)) {
@@ -1310,14 +1398,18 @@ function main(array $argv): int {
 		if ($expected === [] && !$all) {
 			fail("no migrations found in $dir");
 		}
-		$bad = checkApp($name, $expected, $applied, $schema, $prefix, $source, $verbose, $strict, $all, scopeFilter($opts), $fixes) || $bad;
+		$result = checkApp($name, $expected, $applied, $schema, $prefix, $source, $verbose, $strict, $all, scopeFilter($opts), $fixes);
+		$bad = $result['bad'] || $bad;
 		if ($all) {
-			echo "\n";
+			$results[$name] = $result;
 		}
+	}
+	if ($all) {
+		printOverview($results, $prefix, $source, $opts);
 	}
 	printFix($fixes);
 	if ($skipped !== []) {
-		echo 'skipped (not on disk, e.g. disabled or removed apps): ' . implode(', ', $skipped) . "\n";
+		echo 'Skipped (not on disk, e.g. disabled or removed apps): ' . implode(', ', $skipped) . "\n";
 	}
 	return $bad ? EXIT_FINDINGS : EXIT_OK;
 }
