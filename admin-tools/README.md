@@ -123,6 +123,8 @@ The database connection is taken from the Nextcloud config (`config/config.php` 
 
 **Options:** `--app` (default `spreed`), `--all` (all apps; clean apps get one line, details only for apps with findings, `--verbose` shows the rest), `--app-path` (default: looked up via `apps_paths` in the Nextcloud config, else `apps/`, `apps-external/`, `custom_apps/`), `--config DIR`, `--sqlite-file FILE`, `--since-root DIR` (only migrations that do not exist in that older tree; apps missing there count fully), `--since-date YYYYMMDD` (only migrations dated on or after), `--strict` (also fail on "not verifiable"), `--verbose` (list verified and superseded effects).
 
+When something is found, the report ends with a "Suggested fix" block: the `occ migrations:execute <app> <version>` commands in execution order, plus the steps around them (backup, maintenance mode, the temporary debug config that `migrations:execute` needs). The script only prints them and never runs anything.
+
 **Exit codes:** 0 nothing wrong, 1 never applied or not in effect found, 2 usage/input error. Output contains only versions and table, column and index names. Sessions are read-only (`SET SESSION TRANSACTION READ ONLY` / `PRAGMA query_only`), and connection errors are reported by code only so no credentials leak.
 
 **Requires:** PHP with `pdo_mysql` or `pdo_sqlite` (for `--db`). No git needed.

@@ -1049,6 +1049,27 @@ function scopeFilter(string $app, array $opts, string $ncRoot): ?Closure {
 	};
 }
 
+/**
+ * Print the commands an admin has to run to repair the findings. Nothing is executed here.
+ * @param array<string,list<string>> $fixes app => versions in execution order
+ */
+function printFix(array $fixes): void {
+	if ($fixes === []) {
+		return;
+	}
+	echo "== Suggested fix (run by an admin, this script changes nothing) ==\n";
+	echo "# Before: take a DB backup/snapshot and enable maintenance mode:  occ maintenance:mode --on\n";
+	echo "# migrations:execute exists only with debug on; use a temporary config file and remove it afterwards:\n";
+	echo "#   printf '<?php\\n\$CONFIG = [\"debug\" => true];\\n' > config/zz-debug.config.php\n";
+	echo "# Run in this order; only migrations that are missing or not in effect are listed:\n";
+	foreach ($fixes as $app => $versions) {
+		foreach ($versions as $v) {
+			echo "occ migrations:execute $app $v\n";
+		}
+	}
+	echo "# After: rm config/zz-debug.config.php; occ maintenance:mode --off; then re-run this check\n\n";
+}
+
 /** Migration directory of an app; core keeps its migrations in core/Migrations. */
 function migrationDir(string $app, string $ncRoot, ?string $appPath, array $config): ?string {
 	if ($app === 'core') {
@@ -1064,7 +1085,7 @@ function migrationDir(string $app, string $ncRoot, ?string $appPath, array $conf
  * @param array<string,true> $applied
  * @return bool true if something is missing or not in effect
  */
-function checkApp(string $app, array $expected, array $applied, array $schema, string $prefix, string $source, bool $verbose, bool $strict, bool $compact, ?Closure $inScope = null): bool {
+function checkApp(string $app, array $expected, array $applied, array $schema, string $prefix, string $source, bool $verbose, bool $strict, bool $compact, ?Closure $inScope = null, array &$fixes = []): bool {
 	$neverApplied = [];
 	$notInApp = [];
 	foreach (array_keys($expected) as $v) {
@@ -1136,6 +1157,11 @@ function checkApp(string $app, array $expected, array $applied, array $schema, s
 	}
 
 	$bad = $neverApplied !== [] || $notInEffect !== [] || ($strict && $unverifiable !== []);
+	$toRun = array_values(array_unique(array_merge($neverApplied, array_keys($notInEffect))));
+	usort($toRun, 'compareVersions');
+	if ($toRun !== []) {
+		$fixes[$app] = $toRun;
+	}
 	if ($compact && !$bad) {
 		echo "app=$app OK expected=" . count($expected) . ' not_verifiable=' . count($unverifiable) . "\n";
 		if (!$verbose) {
@@ -1270,6 +1296,7 @@ function main(array $argv): int {
 
 	$bad = false;
 	$skipped = [];
+	$fixes = [];
 	foreach ($appliedByApp as $name => $applied) {
 		$dir = migrationDir($name, $ncRoot, $all ? null : $appPath, $cfgForLookup);
 		if ($dir === null || !is_dir($dir)) {
@@ -1283,11 +1310,12 @@ function main(array $argv): int {
 		if ($expected === [] && !$all) {
 			fail("no migrations found in $dir");
 		}
-		$bad = checkApp($name, $expected, $applied, $schema, $prefix, $source, $verbose, $strict, $all, scopeFilter($name, $opts, $ncRoot)) || $bad;
+		$bad = checkApp($name, $expected, $applied, $schema, $prefix, $source, $verbose, $strict, $all, scopeFilter($name, $opts, $ncRoot), $fixes) || $bad;
 		if ($all) {
 			echo "\n";
 		}
 	}
+	printFix($fixes);
 	if ($skipped !== []) {
 		echo 'skipped (not on disk, e.g. disabled or removed apps): ' . implode(', ', $skipped) . "\n";
 	}
