@@ -111,9 +111,8 @@ The database connection is taken from the Nextcloud config (`config/config.php` 
 # Every app that has rows in oc_migrations (core included; apps not on disk are skipped)
 ./check-app-migrations.php --all --db
 
-# Only what an upgrade from 31 should have run: point at a 31 Nextcloud tree
-./check-app-migrations.php --all --db --since-root /path/to/nextcloud-31
-./check-app-migrations.php --all --db --since-date 20250101   # or by migration date
+# Only what an upgrade from Nextcloud 31 (31 -> 32 -> 33) should have run
+./check-app-migrations.php --all --db --since-nc 31
 
 # Check elsewhere from dumps taken in the pod
 ./check-app-migrations.php --db --dump-applied > applied.txt
@@ -121,7 +120,7 @@ The database connection is taken from the Nextcloud config (`config/config.php` 
 ./check-app-migrations.php --applied applied.txt --schema schema.txt
 ```
 
-**Options:** `--app` (default `spreed`), `--all` (all apps; clean apps get one line, details only for apps with findings, `--verbose` shows the rest), `--app-path` (default: looked up via `apps_paths` in the Nextcloud config, else `apps/`, `apps-external/`, `custom_apps/`), `--config DIR`, `--sqlite-file FILE`, `--since-root DIR` (only migrations that do not exist in that older tree; apps missing there count fully), `--since-date YYYYMMDD` (only migrations dated on or after), `--strict` (also fail on "not verifiable"), `--verbose` (list verified and superseded effects).
+**Options:** `--app` (default `spreed`), `--all` (all apps; clean apps get one line, details only for apps with findings, `--verbose` shows the rest), `--app-path` (default: looked up via `apps_paths` in the Nextcloud config, else `apps/`, `apps-external/`, `custom_apps/`), `--config DIR`, `--sqlite-file FILE`, `--since-nc N` (only migrations written after Nextcloud N was branched, e.g. `31`; derived from the date stamp in the migration version, so approximate for apps that are branched on their own schedule), `--strict` (also fail on "not verifiable"), `--verbose` (list verified and superseded effects).
 
 When something is found, the report ends with a "Suggested fix" block: the `occ migrations:execute <app> <version>` commands in execution order, plus the steps around them (backup, maintenance mode, the temporary debug config that `migrations:execute` needs). The script only prints them and never runs anything.
 
