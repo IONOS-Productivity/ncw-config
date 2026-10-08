@@ -58,7 +58,7 @@
   "docxf": false,
   "oform": false,
   "oxps":  false,
-  "pdf":   true,
+  "pdf":   false,
   "xps":   false,
   "vsdx":  true,
   "vsdm":  false,
