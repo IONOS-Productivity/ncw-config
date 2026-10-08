@@ -45,6 +45,9 @@ Options:
   --schema FILE    Schema dump as produced by --dump-schema
   --dump-applied   Print the applied versions of APP and exit
   --dump-schema    Print the live schema (table/column/index names) and exit
+  --since-root DIR  Only migrations missing from this older Nextcloud tree (e.g. a 31
+                   checkout): what an upgrade from it should have run
+  --since-date D   Only migrations dated on or after D (YYYYMMDD)
   --strict         Treat "not verifiable" migrations as findings too
   --verbose        Also list verified and superseded schema effects
   -h, --help       This help
@@ -1018,6 +1021,34 @@ function checkEffect(array $e, array $schema): ?string {
 	return null;
 }
 
+/**
+ * Limit the report to migrations that belong to an upgrade window:
+ *   --since-root DIR   Nextcloud tree from before the upgrade (e.g. the 31 release);
+ *                      migrations that already exist there are out of scope
+ *   --since-date D     only migrations whose Date stamp is on or after D (YYYYMMDD)
+ */
+function scopeFilter(string $app, array $opts, string $ncRoot): ?Closure {
+	$old = null;
+	if (isset($opts['since-root'])) {
+		$root = rtrim((string)$opts['since-root'], '/');
+		$dir = migrationDir($app, $root, null, []);
+		$old = $dir !== null && is_dir($dir) ? dirMigrations($dir) : [];
+	}
+	$since = isset($opts['since-date']) ? (string)$opts['since-date'] : null;
+	if ($since !== null && preg_match('/^\d{8}$/', $since) !== 1) {
+		fail('--since-date must be YYYYMMDD');
+	}
+	if ($old === null && $since === null) {
+		return null;
+	}
+	return static function (string $version) use ($old, $since): bool {
+		if ($old !== null && isset($old[$version])) {
+			return false;
+		}
+		return $since === null || (preg_match('/Date(\d{8})/', $version, $m) === 1 && $m[1] >= $since);
+	};
+}
+
 /** Migration directory of an app; core keeps its migrations in core/Migrations. */
 function migrationDir(string $app, string $ncRoot, ?string $appPath, array $config): ?string {
 	if ($app === 'core') {
@@ -1033,11 +1064,11 @@ function migrationDir(string $app, string $ncRoot, ?string $appPath, array $conf
  * @param array<string,true> $applied
  * @return bool true if something is missing or not in effect
  */
-function checkApp(string $app, array $expected, array $applied, array $schema, string $prefix, string $source, bool $verbose, bool $strict, bool $compact): bool {
+function checkApp(string $app, array $expected, array $applied, array $schema, string $prefix, string $source, bool $verbose, bool $strict, bool $compact, ?Closure $inScope = null): bool {
 	$neverApplied = [];
 	$notInApp = [];
 	foreach (array_keys($expected) as $v) {
-		if (!isset($applied[$v])) {
+		if (!isset($applied[$v]) && ($inScope === null || $inScope($v))) {
 			$neverApplied[] = $v;
 		}
 	}
@@ -1089,7 +1120,7 @@ function checkApp(string $app, array $expected, array $applied, array $schema, s
 		if ($problem !== null) {
 			// One line per missing table instead of one per column/index of it.
 			$line = $problem === 'table missing' ? "table {$e['table']} missing" : describeEffect($e) . ': ' . $problem;
-			if (!in_array($line, $notInEffect[$v] ?? [], true)) {
+			if (($inScope === null || $inScope($v)) && !in_array($line, $notInEffect[$v] ?? [], true)) {
 				$notInEffect[$v][] = $line;
 			}
 		} else {
@@ -1099,7 +1130,7 @@ function checkApp(string $app, array $expected, array $applied, array $schema, s
 
 	$unverifiable = [];
 	foreach ($extracted as $v => $x) {
-		if ($x['reasons'] !== []) {
+		if ($x['reasons'] !== [] && ($inScope === null || $inScope($v))) {
 			$unverifiable[$v] = $x['reasons'];
 		}
 	}
@@ -1172,7 +1203,7 @@ function checkApp(string $app, array $expected, array $applied, array $schema, s
 function main(array $argv): int {
 	$opts = getopt('h', [
 		'app:', 'app-path:', 'db', 'applied:', 'schema:', 'dump-applied', 'dump-schema',
-		'strict', 'verbose', 'help', 'config:', 'sqlite-file:', 'all'
+		'strict', 'verbose', 'help', 'config:', 'sqlite-file:', 'all', 'since-root:', 'since-date:'
 	], $rest);
 	if (isset($opts['h']) || isset($opts['help'])) {
 		echo usage();
@@ -1252,7 +1283,7 @@ function main(array $argv): int {
 		if ($expected === [] && !$all) {
 			fail("no migrations found in $dir");
 		}
-		$bad = checkApp($name, $expected, $applied, $schema, $prefix, $source, $verbose, $strict, $all) || $bad;
+		$bad = checkApp($name, $expected, $applied, $schema, $prefix, $source, $verbose, $strict, $all, scopeFilter($name, $opts, $ncRoot)) || $bad;
 		if ($all) {
 			echo "\n";
 		}
