@@ -111,13 +111,17 @@ The database connection is taken from the Nextcloud config (`config/config.php` 
 # Every app that has rows in oc_migrations (core included; apps not on disk are skipped)
 ./check-app-migrations.php --all --db
 
+# Only what an upgrade from 31 should have run: point at a 31 Nextcloud tree
+./check-app-migrations.php --all --db --since-root /path/to/nextcloud-31
+./check-app-migrations.php --all --db --since-date 20250101   # or by migration date
+
 # Check elsewhere from dumps taken in the pod
 ./check-app-migrations.php --db --dump-applied > applied.txt
 ./check-app-migrations.php --db --dump-schema  > schema.txt
 ./check-app-migrations.php --applied applied.txt --schema schema.txt
 ```
 
-**Options:** `--app` (default `spreed`), `--all` (all apps; clean apps get one line, details only for apps with findings, `--verbose` shows the rest), `--app-path` (default: looked up via `apps_paths` in the Nextcloud config, else `apps/`, `apps-external/`, `custom_apps/`), `--config DIR`, `--sqlite-file FILE`, `--strict` (also fail on "not verifiable"), `--verbose` (list verified and superseded effects).
+**Options:** `--app` (default `spreed`), `--all` (all apps; clean apps get one line, details only for apps with findings, `--verbose` shows the rest), `--app-path` (default: looked up via `apps_paths` in the Nextcloud config, else `apps/`, `apps-external/`, `custom_apps/`), `--config DIR`, `--sqlite-file FILE`, `--since-root DIR` (only migrations that do not exist in that older tree; apps missing there count fully), `--since-date YYYYMMDD` (only migrations dated on or after), `--strict` (also fail on "not verifiable"), `--verbose` (list verified and superseded effects).
 
 **Exit codes:** 0 nothing wrong, 1 never applied or not in effect found, 2 usage/input error. Output contains only versions and table, column and index names. Sessions are read-only (`SET SESSION TRANSACTION READ ONLY` / `PRAGMA query_only`), and connection errors are reported by code only so no credentials leak.
 
