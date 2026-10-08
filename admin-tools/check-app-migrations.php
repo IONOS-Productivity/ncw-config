@@ -389,7 +389,7 @@ final class EffectExtractor {
 	/** @var array<string,true> */
 	public array $reasons = [];
 	private bool $conditional = false;
-	/** True when changeSchema() ends with "return null;": Nextcloud then applies none of its changes. */
+	/** True when every return in changeSchema() is "return null;": Nextcloud then applies none of its changes. */
 	private bool $returnsNull = false;
 	/** @var array<string,true> tables that code we could not interpret may have changed */
 	private array $touched = [];
@@ -425,11 +425,14 @@ final class EffectExtractor {
 			$self->vars = ['$schema' => ['k' => 'schema']];
 			$self->walk($methods['changeSchema'][0], $methods['changeSchema'][1], true);
 		}
+		if (isset($methods['changeSchema'])) {
+			$self->returnsNull = $self->onlyReturnsNull(...$methods['changeSchema']);
+		}
 		if ($self->returnsNull && $self->effects !== []) {
 			// MigrationService::executeStep() only migrates when a schema wrapper is returned, so these
 			// effects never happen and re-running the migration cannot create them.
 			$self->effects = [];
-			$self->reasons['changeSchema() ends with "return null;": Nextcloud discards its schema changes, they are never applied (defect in the app)'] = true;
+			$self->reasons['changeSchema() only ever returns null: Nextcloud discards its schema changes, they are never applied (defect in the app)'] = true;
 		}
 		return [
 			'effects' => $self->effects,
@@ -479,6 +482,29 @@ final class EffectExtractor {
 			}
 		}
 		return $methods;
+	}
+
+	/** True if the range has at least one return and every return is "return null;" (no schema is ever handed back). */
+	private function onlyReturnsNull(int $from, int $to): bool {
+		$returns = 0;
+		for ($i = $from; $i < $to; $i++) {
+			if ($this->T[$i]['t'] === T_FUNCTION || $this->T[$i]['t'] === T_FN) {
+				// closures have their own returns
+				$j = $i + 1;
+				while ($j < $to && $this->T[$j]['s'] !== '{' && $this->T[$j]['s'] !== ';') {
+					$j = $this->isOpen($j) ? $this->close($j) + 1 : $j + 1;
+				}
+				$i = ($j < $to && $this->T[$j]['s'] === '{') ? $this->close($j) : $j;
+				continue;
+			}
+			if ($this->T[$i]['t'] === T_RETURN) {
+				$returns++;
+				if (strtolower($this->T[$i + 1]['s'] ?? '') !== 'null' || ($this->T[$i + 2]['s'] ?? '') !== ';') {
+					return false;
+				}
+			}
+		}
+		return $returns > 0;
 	}
 
 	private function isTrivial(int $from, int $to): bool {
@@ -548,7 +574,6 @@ final class EffectExtractor {
 				$this->walk($i + 1, $close, false);
 				$i = $close + 1;
 			} elseif ($tok['t'] === T_RETURN && $top) {
-				$this->returnsNull = strtolower($this->T[$i + 1]['s'] ?? '') === 'null' && ($this->T[$i + 2]['s'] ?? '') === ';';
 				return;
 			} else {
 				$stmtEnd = $this->statementEnd($i, $end);
