@@ -93,6 +93,36 @@ Update email addresses in Nextcloud mail app configuration when a customer's ema
 
 **Note:** Users may need to refresh their mail app to see the changes.
 
+### check-app-migrations.php
+
+Read-only check of an app's migrations against the database. Reports migrations that were **never applied** (no row in `oc_migrations`) and migrations that are **applied but not in effect** (row exists, but the columns, tables or indexes they create are missing, or what they drop is still there). Example: Talk failing with `Unknown column 'r.last_pinned_id'` although `23000Date20251030090219` is recorded as applied.
+
+The expected migrations are the `Version*.php` files in the app's `lib/Migration`, i.e. what is deployed there. No git is used. Schema effects (`addColumn`, `createTable`, `addIndex`, `setPrimaryKey`, `dropColumn`, `dropTable`, `dropIndex`, `renameColumn`) are extracted statically from `changeSchema()`. `hasColumn`-style guards are understood. Effects that a later applied migration overrides are skipped. Anything it cannot parse (data changes in `preSchemaChange`/`postSchemaChange`, loops, helper calls, non-guard conditions, computed names) is listed under "Not verifiable" and never guessed.
+
+The database connection is taken from the Nextcloud config (`config/config.php` plus `config/*.config.php`); nothing is passed on the command line.
+
+```bash
+# On the instance: the app directory is found automatically
+./check-app-migrations.php --app spreed --db
+
+# sqlite dev instance whose datadirectory is a container path
+./check-app-migrations.php --db --sqlite-file data/owncloud.db
+
+# Every app that has rows in oc_migrations (core included; apps not on disk are skipped)
+./check-app-migrations.php --all --db
+
+# Check elsewhere from dumps taken in the pod
+./check-app-migrations.php --db --dump-applied > applied.txt
+./check-app-migrations.php --db --dump-schema  > schema.txt
+./check-app-migrations.php --applied applied.txt --schema schema.txt
+```
+
+**Options:** `--app` (default `spreed`), `--all` (all apps; clean apps get one line, details only for apps with findings, `--verbose` shows the rest), `--app-path` (default: looked up via `apps_paths` in the Nextcloud config, else `apps/`, `apps-external/`, `custom_apps/`), `--config DIR`, `--sqlite-file FILE`, `--strict` (also fail on "not verifiable"), `--verbose` (list verified and superseded effects).
+
+**Exit codes:** 0 nothing wrong, 1 never applied or not in effect found, 2 usage/input error. Output contains only versions and table, column and index names. Sessions are read-only (`SET SESSION TRANSACTION READ ONLY` / `PRAGMA query_only`), and connection errors are reported by code only so no credentials leak.
+
+**Requires:** PHP with `pdo_mysql` or `pdo_sqlite` (for `--db`). No git needed.
+
 
 ## Standard Interface
 
