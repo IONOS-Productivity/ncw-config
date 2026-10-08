@@ -1441,6 +1441,11 @@ function replayRisk(string $v, array $x, bool $wasApplied, array $applied, array
 	return null;
 }
 
+/** A word for a shell command line: left alone when it only has safe characters, quoted otherwise. */
+function shellWord(string $word): string {
+	return preg_match('/^[A-Za-z0-9_.\/=:@%+,-]+$/', $word) === 1 ? $word : escapeshellarg($word);
+}
+
 /**
  * Print what an admin can do about the findings. Nothing is executed here.
  * @param array<string,array{run:list<string>,review:array<string,string>}> $fixes
@@ -1462,7 +1467,8 @@ function printFix(array $fixes, string $recheck, bool $fromFiles): void {
 		foreach ($run as $app => $f) {
 			foreach ($f['run'] as $v) {
 				// migrations:execute prints nothing on success, so make the exit code visible
-				$lines[] = "NC_debug=true occ migrations:execute $app $v && echo \"OK: $app $v\"";
+				$lines[] = 'NC_debug=true occ migrations:execute ' . shellWord((string)$app) . ' ' . shellWord($v)
+					. ' && echo ' . escapeshellarg("OK: $app $v");
 			}
 		}
 		echo implode(" \\\n\t&& ", $lines) . "\n";
@@ -1817,7 +1823,13 @@ function main(array $argv): int {
 	$skipped = [];
 	$fixes = [];
 	$results = [];
+	$invalid = 0;
 	foreach ($appliedByApp as $name => $applied) {
+		if (preg_match('/^[a-z0-9_]+$/', (string)$name) !== 1) {
+			// an id from the database that is not a plain app id never reaches a path or a command
+			$invalid++;
+			continue;
+		}
 		$dir = migrationDir($name, $ncRoot, $all ? null : $appPath, $cfgForLookup);
 		if ($dir === null || !is_dir($dir)) {
 			if (!$all) {
@@ -1840,11 +1852,11 @@ function main(array $argv): int {
 		printOverview($results, $prefix, $source, $opts);
 	}
 	// the same check again: same arguments, quoted for a shell
-	$recheck = implode(' ', array_map(
-		static fn (string $a): string => preg_match('/^[A-Za-z0-9_.\/=:@%+,-]+$/', $a) === 1 ? $a : escapeshellarg($a),
-		$argv
-	));
+	$recheck = implode(' ', array_map('shellWord', $argv));
 	printFix($fixes, $recheck, !$useDb);
+	if ($invalid > 0) {
+		echo "Ignored $invalid app id(s) in the migrations table that are not plain app ids (lowercase letters, digits, underscore)\n";
+	}
 	if ($skipped !== []) {
 		echo 'Skipped (not on disk, e.g. disabled or removed apps): ' . implode(', ', $skipped) . "\n";
 	}
