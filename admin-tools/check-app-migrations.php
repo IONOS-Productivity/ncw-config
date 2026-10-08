@@ -1235,7 +1235,7 @@ function scopeFilter(array $opts): ?Closure {
  * Print what an admin can do about the findings. Nothing is executed here.
  * @param array<string,array{run:list<string>,review:array<string,string>}> $fixes
  */
-function printFix(array $fixes): void {
+function printFix(array $fixes, string $recheck): void {
 	if ($fixes === []) {
 		return;
 	}
@@ -1243,16 +1243,19 @@ function printFix(array $fixes): void {
 	$review = array_filter($fixes, static fn (array $f): bool => $f['review'] !== []);
 	echo "== Suggested fix (run by an admin, this script changes nothing) ==\n";
 	echo "# A replay runs the whole migration again, not only the part that is missing.\n";
+	echo "# migrations:execute is silent on success; the OK line and exit code 0 mean it worked, a failure prints an error.\n";
 	if ($run !== []) {
 		echo "# Before: take a DB backup/snapshot and enable maintenance mode:  occ maintenance:mode --on\n";
 		echo "# migrations:execute is only available with debug on; NC_debug=true enables it for this one command only\n";
 		echo "# In this order:\n";
 		foreach ($run as $app => $f) {
 			foreach ($f['run'] as $v) {
-				echo "NC_debug=true occ migrations:execute $app $v\n";
+				// migrations:execute prints nothing on success, so make the exit code visible
+				echo "NC_debug=true occ migrations:execute $app $v && echo \"OK: $app $v\"\n";
 			}
 		}
-		echo "# After: occ maintenance:mode --off; then re-run this check\n";
+		echo "# After: occ maintenance:mode --off; then check the result (expect no findings left):\n";
+		echo "$recheck\n";
 	}
 	if ($review !== []) {
 		echo "# Review by hand, no command suggested because a replay is not harmless:\n";
@@ -1619,7 +1622,8 @@ function main(array $argv): int {
 	if ($all) {
 		printOverview($results, $prefix, $source, $opts);
 	}
-	printFix($fixes);
+	$recheck = $argv[0] . ($all ? ' --all --db' : ' --app ' . $app . ' --db') . (isset($opts['since-nc']) ? ' --since-nc ' . (int)$opts['since-nc'] : '');
+	printFix($fixes, $recheck);
 	if ($skipped !== []) {
 		echo 'Skipped (not on disk, e.g. disabled or removed apps): ' . implode(', ', $skipped) . "\n";
 	}
