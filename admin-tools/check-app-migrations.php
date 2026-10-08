@@ -1059,15 +1059,14 @@ function printFix(array $fixes): void {
 	}
 	echo "== Suggested fix (run by an admin, this script changes nothing) ==\n";
 	echo "# Before: take a DB backup/snapshot and enable maintenance mode:  occ maintenance:mode --on\n";
-	echo "# migrations:execute exists only with debug on; use a temporary config file and remove it afterwards:\n";
-	echo "#   printf '<?php\\n\$CONFIG = [\"debug\" => true];\\n' > config/zz-debug.config.php\n";
+	echo "# migrations:execute is only available with debug on; NC_debug=true enables it for this one command only\n";
 	echo "# Run in this order; only migrations that are missing or not in effect are listed:\n";
 	foreach ($fixes as $app => $versions) {
 		foreach ($versions as $v) {
-			echo "occ migrations:execute $app $v\n";
+			echo "NC_debug=true occ migrations:execute $app $v\n";
 		}
 	}
-	echo "# After: rm config/zz-debug.config.php; occ maintenance:mode --off; then re-run this check\n\n";
+	echo "# After: occ maintenance:mode --off; then re-run this check\n\n";
 }
 
 /** Migration directory of an app; core keeps its migrations in core/Migrations. */
