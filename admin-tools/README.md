@@ -120,7 +120,7 @@ The database connection is taken from the Nextcloud config (`config/config.php` 
 ./check-app-migrations.php --applied applied.txt --schema schema.txt
 ```
 
-**Options:** `--app` (default `spreed`), `--all` (all apps; clean apps get one line, details only for apps with findings, `--verbose` shows the rest), `--app-path` (default: looked up via `apps_paths` in the Nextcloud config, else `apps/`, `apps-external/`, `custom_apps/`), `--config DIR`, `--sqlite-file FILE`, `--since-nc N` (only migrations written after Nextcloud N was branched, e.g. `31`; derived from the date stamp in the migration version, so approximate for apps that are branched on their own schedule), `--strict` (also fail on "not verifiable"), `--verbose` (list verified and superseded effects).
+**Options:** `--app` (default `spreed`), `--all` (all apps; an overview table and details only for apps with findings, `--verbose` shows the rest), `--app-path` (default: looked up via `apps_paths` in the Nextcloud config, else `apps/`, `apps-external/`, `custom_apps/`), `--config DIR`, `--sqlite-file FILE`, `--since-nc N` (only migrations written after Nextcloud N was branched, e.g. `31`; derived from the date stamp in the migration version, so approximate for apps that are branched on their own schedule), `--strict` (also fail on "not verifiable"), `--verbose` (list verified and superseded effects).
 
 When something is found, the report ends with a "Suggested fix" block: the `occ migrations:execute <app> <version>` commands in execution order, plus the steps around them (backup, maintenance mode, the temporary debug config that `migrations:execute` needs). The script only prints them and never runs anything.
 
