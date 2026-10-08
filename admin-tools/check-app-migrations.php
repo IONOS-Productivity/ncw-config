@@ -43,6 +43,7 @@ function usage(): string {
 |  --db             Read applied list and schema from the database
 |  --applied FILE   Applied versions, one per line (e.g. 23000Date20251030090219)
 |  --schema FILE    Schema dump as produced by --dump-schema
+|  --prefix P       Table prefix for --applied/--schema files without a prefix= line (default: oc_)
 |  --dump-applied   Print the applied versions of APP and exit
 |  --dump-schema    Print the live schema (table/column/index names) and exit
 |  --since-nc N     Only migrations written after Nextcloud N was branched (stable N cut from
@@ -62,8 +63,9 @@ function usage(): string {
 |deployed in the app directory.
 
 |Schema dump format, whitespace separated, real (prefixed) table names:
+|  prefix=<table prefix>                                  (first line of a dump; --prefix overrides)
 |  column <table> <column>
-|  index  <table> <index-name> <col1,col2,...>      (primary key: PRIMARY)
+|  index  <table> <index-name> <col1,col2,...> [unique]   (primary key: PRIMARY)
 
 TXT;
 	// The leading | keeps indentation in the source free of spaces (tabs only, see .editorconfig).
@@ -111,7 +113,7 @@ function compareVersions(string $a, string $b): int {
 // ---------------------------------------------------------------------------
 
 /**
- * Schema model: ['columns' => [table => [col => true]], 'indexes' => [table => [name => [cols]]]]
+ * Schema model: ['columns' => [table => [col => true]], 'indexes' => [table => [name => ['cols' => [..], 'unique' => bool]]]]
  * Names are lower-cased and stripped of the table prefix.
  */
 function newSchema(): array {
@@ -129,8 +131,12 @@ function addColumnTo(array &$schema, string $table, string $column): void {
 	$schema['columns'][$table][strtolower($column)] = true;
 }
 
-function addIndexTo(array &$schema, string $table, string $name, array $cols): void {
-	$schema['indexes'][$table][strtolower($name) === 'primary' ? 'PRIMARY' : $name] = array_map('strtolower', $cols);
+function addIndexTo(array &$schema, string $table, string $name, array $cols, bool $unique): void {
+	$isPrimary = strtolower($name) === 'primary';
+	$schema['indexes'][$table][$isPrimary ? 'PRIMARY' : $name] = [
+		'cols' => array_map('strtolower', $cols),
+		'unique' => $unique || $isPrimary,
+	];
 }
 
 function readAppliedFile(string $file): array {
@@ -151,6 +157,19 @@ function readAppliedFile(string $file): array {
 	return $result;
 }
 
+/** Table prefix recorded in a schema dump ("prefix=oc_" line), null for hand-made files without one. */
+function schemaFilePrefix(string $file): ?string {
+	if (!is_readable($file)) {
+		fail("cannot read schema file $file");
+	}
+	foreach (file($file, FILE_IGNORE_NEW_LINES) as $line) {
+		if (str_starts_with(trim($line), 'prefix=')) {
+			return substr(trim($line), strlen('prefix='));
+		}
+	}
+	return null;
+}
+
 function readSchemaFile(string $file, string $prefix): array {
 	if (!is_readable($file)) {
 		fail("cannot read schema file $file");
@@ -158,7 +177,7 @@ function readSchemaFile(string $file, string $prefix): array {
 	$schema = newSchema();
 	foreach (file($file, FILE_IGNORE_NEW_LINES) as $no => $line) {
 		$line = trim($line);
-		if ($line === '' || $line[0] === '#') {
+		if ($line === '' || $line[0] === '#' || str_starts_with($line, 'prefix=')) {
 			continue;
 		}
 		$f = preg_split('/\s+/', $line);
@@ -167,9 +186,9 @@ function readSchemaFile(string $file, string $prefix): array {
 			if ($table !== null) {
 				addColumnTo($schema, $table, $f[2]);
 			}
-		} elseif ($f[0] === 'index' && count($f) === 4) {
+		} elseif ($f[0] === 'index' && (count($f) === 4 || (count($f) === 5 && $f[4] === 'unique'))) {
 			if ($table !== null) {
-				addIndexTo($schema, $table, $f[2], explode(',', $f[3]));
+				addIndexTo($schema, $table, $f[2], explode(',', $f[3]), count($f) === 5);
 			}
 		} else {
 			fail('schema file: line ' . ($no + 1) . ' is malformed');
@@ -308,7 +327,7 @@ function dbSchema(PDO $pdo, string $prefix): array {
 			}
 			if ($pk !== []) {
 				ksort($pk);
-				addIndexTo($schema, $table, 'PRIMARY', array_values($pk));
+				addIndexTo($schema, $table, 'PRIMARY', array_values($pk), true);
 			}
 			foreach ($pdo->query("PRAGMA index_list($quoted)")->fetchAll(PDO::FETCH_ASSOC) as $idx) {
 				if ($idx['origin'] === 'pk') {
@@ -316,7 +335,7 @@ function dbSchema(PDO $pdo, string $prefix): array {
 				}
 				$iq = '"' . str_replace('"', '""', (string)$idx['name']) . '"';
 				$cols = array_column($pdo->query("PRAGMA index_info($iq)")->fetchAll(PDO::FETCH_ASSOC), 'name');
-				addIndexTo($schema, $table, (string)$idx['name'], array_map('strval', $cols));
+				addIndexTo($schema, $table, (string)$idx['name'], array_map('strval', $cols), (int)$idx['unique'] === 1);
 			}
 		}
 		return $schema;
@@ -332,19 +351,21 @@ function dbSchema(PDO $pdo, string $prefix): array {
 		}
 	}
 	$rows = $pdo->query(
-		'SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME FROM information_schema.STATISTICS '
+		'SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, NON_UNIQUE FROM information_schema.STATISTICS '
 		. 'WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX'
 	)->fetchAll(PDO::FETCH_NUM);
 	$grouped = [];
-	foreach ($rows as [$real, $index, $col]) {
+	$unique = [];
+	foreach ($rows as [$real, $index, $col, $nonUnique]) {
 		$table = stripPrefix((string)$real, $prefix);
 		if ($table !== null) {
 			$grouped[$table][(string)$index][] = (string)$col;
+			$unique[$table][(string)$index] = (int)$nonUnique === 0;
 		}
 	}
 	foreach ($grouped as $table => $indexes) {
 		foreach ($indexes as $name => $cols) {
-			addIndexTo($schema, $table, (string)$name, $cols);
+			addIndexTo($schema, $table, (string)$name, $cols, $unique[$table][$name]);
 		}
 	}
 	return $schema;
@@ -353,14 +374,15 @@ function dbSchema(PDO $pdo, string $prefix): array {
 function dumpSchema(PDO $pdo, string $prefix): void {
 	// Dump with the prefix kept so that the file is self-describing.
 	$schema = dbSchema($pdo, $prefix);
+	echo "prefix=$prefix\n";
 	foreach ($schema['columns'] as $table => $cols) {
 		foreach (array_keys($cols) as $col) {
 			echo "column $prefix$table $col\n";
 		}
 	}
 	foreach ($schema['indexes'] as $table => $indexes) {
-		foreach ($indexes as $name => $cols) {
-			echo "index $prefix$table $name " . implode(',', $cols) . "\n";
+		foreach ($indexes as $name => $idx) {
+			echo "index $prefix$table $name " . implode(',', $idx['cols']) . ($idx['unique'] ? ' unique' : '') . "\n";
 		}
 	}
 }
@@ -397,6 +419,8 @@ final class EffectExtractor {
 	private array $touched = [];
 	/** @var array<string,true> effect keys that an early-return has*() guard already speaks about */
 	private array $guarded = [];
+	/** @var array<string,array{0:int,1:int}> method => [index of "(", index of ")"] */
+	private array $params = [];
 
 	/**
 	 * @return array{effects:list<array<string,mixed>>,reasons:list<string>,touched:list<string>}
@@ -424,7 +448,8 @@ final class EffectExtractor {
 			}
 		}
 		if (isset($methods['changeSchema'])) {
-			$self->vars = ['$schema' => ['k' => 'schema']];
+			$closureVar = $self->closureParam();
+			$self->vars = $closureVar === null ? [] : [$closureVar => ['k' => 'closure']];
 			$self->walk($methods['changeSchema'][0], $methods['changeSchema'][1], true);
 		}
 		if (isset($methods['changeSchema'])) {
@@ -441,6 +466,31 @@ final class EffectExtractor {
 			'reasons' => array_keys($self->reasons),
 			'touched' => array_keys($self->touched),
 		];
+	}
+
+	/** Name of the Closure parameter of changeSchema() ($schemaClosure by convention). */
+	private function closureParam(): ?string {
+		[$open, $close] = $this->params['changeSchema'];
+		$args = $this->splitArgs($open, $close);
+		foreach ($args as [$a, $b]) {
+			for ($i = $a; $i < $b; $i++) {
+				if ($this->T[$i]['t'] === T_STRING && strtolower($this->T[$i]['s']) === 'closure') {
+					for ($j = $i; $j < $b; $j++) {
+						if ($this->T[$j]['t'] === T_VARIABLE) {
+							return $this->T[$j]['s'];
+						}
+					}
+				}
+			}
+		}
+		if (isset($args[1])) {
+			for ($j = $args[1][0]; $j < $args[1][1]; $j++) {
+				if ($this->T[$j]['t'] === T_VARIABLE) {
+					return $this->T[$j]['s'];
+				}
+			}
+		}
+		return null;
 	}
 
 	private function collectConsts(): void {
@@ -473,13 +523,15 @@ final class EffectExtractor {
 			if (($this->T[$j]['s'] ?? '') !== '(') {
 				continue;
 			}
-			$j = $this->close($j) + 1;
+			$parenClose = $this->close($j);
+			$j = $parenClose + 1;
 			while ($j < $n && $this->T[$j]['s'] !== '{' && $this->T[$j]['s'] !== ';') {
 				$j++;
 			}
 			if ($j < $n && $this->T[$j]['s'] === '{') {
 				$end = $this->close($j);
 				$methods[$name] = [$j + 1, $end];
+				$this->params[$name] = [$i + 2, $parenClose];
 				$i = $end;
 			}
 		}
@@ -542,15 +594,36 @@ final class EffectExtractor {
 		$this->reasons[$text . ' (line ' . ($this->T[min($tokenIndex, count($this->T) - 1)]['l']) . ')'] = true;
 	}
 
-	/** Remember which tables a range of uninterpreted code may touch: bound table variables and string literals. */
+	/**
+	 * Remember which tables a range of uninterpreted code may touch: bound table variables and string
+	 * literals; when the code gets the schema or a table of unknown name but names no literal, any table.
+	 */
 	private function touch(int $from, int $to): void {
+		$literal = false;
+		$anyTable = false;
 		for ($i = $from; $i < $to && $i < count($this->T); $i++) {
 			$t = $this->T[$i];
-			if ($t['t'] === T_VARIABLE && ($this->vars[$t['s']]['k'] ?? '') === 'table' && isset($this->vars[$t['s']]['name'])) {
-				$this->touched[$this->vars[$t['s']]['name']] = true;
+			if ($t['t'] === T_RETURN) {
+				// handing the schema back does not change a table
+				$i = $this->statementEnd($i, $to);
+				continue;
+			}
+			if ($t['t'] === T_VARIABLE && isset($this->vars[$t['s']])) {
+				$var = $this->vars[$t['s']];
+				if ($var['k'] === 'table' && isset($var['name'])) {
+					$this->touched[$var['name']] = true;
+				} elseif ($var['k'] === 'column') {
+					$this->touched[strstr((string)($var['name'] ?? ''), '.', true) ?: '*'] = true;
+				} elseif ($var['k'] !== 'other') {
+					$anyTable = true;
+				}
 			} elseif ($t['t'] === T_CONSTANT_ENCAPSED_STRING) {
 				$this->touched[strtolower(substr($t['s'], 1, -1))] = true;
+				$literal = true;
 			}
+		}
+		if ($anyTable && !$literal) {
+			$this->touched['*'] = true;
 		}
 	}
 
@@ -619,6 +692,12 @@ final class EffectExtractor {
 				$j++;
 			}
 		}
+		for ($k = $start; $k < $j; $k++) {
+			if ($this->T[$k]['t'] === T_RETURN) {
+				$this->conditional = true;
+				break;
+			}
+		}
 		if ($this->mentions($start, $j)) {
 			$this->touch($start, $j);
 			$this->reason('schema changes inside ' . strtolower(substr(token_name((int)$this->T[$start]['t']), 2)) . ' are not verifiable', $start);
@@ -665,8 +744,8 @@ final class EffectExtractor {
 			}
 		}
 
-		$single = count($branches) === 1;
-		if ($single && $this->isGuard($branches[0][0], $branches[0][1])) {
+		$guard = count($branches) === 1 ? $this->parseGuard($branches[0][0], $branches[0][1]) : null;
+		if ($guard !== null) {
 			[, , $from, $to] = $branches[0];
 			if ($this->conditional) {
 				if ($this->mentions($from, $to)) {
@@ -675,15 +754,26 @@ final class EffectExtractor {
 				}
 				return $j;
 			}
+			$before = count($this->effects);
 			$this->walk($from, $to, false);
+			$this->validateGuarded($guard, $before);
 			for ($k = $from; $k < $to; $k++) {
 				if ($this->T[$k]['t'] === T_RETURN) {
 					$this->conditional = true;
-					$this->collectGuardedKeys($branches[0][0], $branches[0][1]);
+					$this->guarded[$guard['key']] = true;
 					break;
 				}
 			}
 			return $j;
+		}
+		foreach ($branches as [$cf, $ct, $bf, $bt]) {
+			for ($k = $bf; $k < $bt; $k++) {
+				if ($this->T[$k]['t'] === T_RETURN) {
+					// the rest of changeSchema() may be skipped at runtime
+					$this->conditional = true;
+					break 2;
+				}
+			}
 		}
 		foreach ($branches as [$cf, $ct, $bf, $bt]) {
 			if ($this->mentions($cf, $ct) || $this->mentions($bf, $bt)) {
@@ -698,49 +788,75 @@ final class EffectExtractor {
 	}
 
 	/**
-	 * "if (hasTable('x')) return;" followed by createTable('x') leaves 'x' in place either way,
-	 * so effects on exactly the guarded object stay verifiable; everything else does not.
+	 * Recognise exactly "[!]$x->hasColumn|hasIndex|hasUniqueConstraint|hasTable|hasPrimaryKey('name')".
+	 * The key is the effect key the guard speaks about; table is set for hasTable guards, whose body may
+	 * touch anything of that table.
+	 * @return ?array{neg:bool,key:string,table:?string}
 	 */
-	private function collectGuardedKeys(int $from, int $to): void {
-		for ($i = $from; $i + 4 < $to; $i++) {
-			if ($this->T[$i]['t'] !== T_VARIABLE || $this->T[$i + 1]['t'] !== T_OBJECT_OPERATOR
-				|| ($this->T[$i + 3]['s'] ?? '') !== '(') {
-				continue;
-			}
-			$recv = $this->vars[$this->T[$i]['s']] ?? ['k' => 'other'];
-			$method = $this->T[$i + 2]['s'];
-			$arg = $this->str([$i + 4, $i + 5]);
-			if ($arg === null) {
-				continue;
-			}
-			$arg = strtolower($arg);
-			if ($recv['k'] === 'schema' && $method === 'hasTable') {
-				$this->guarded["tbl:$arg"] = true;
-			} elseif ($recv['k'] === 'table' && isset($recv['name'])) {
-				if ($method === 'hasColumn') {
-					$this->guarded["col:{$recv['name']}.$arg"] = true;
-				} elseif ($method === 'hasIndex') {
-					$this->guarded["idx:{$recv['name']}:$arg"] = true;
-				}
-			}
+	private function parseGuard(int $from, int $to): ?array {
+		$i = $from;
+		$neg = ($this->T[$i]['s'] ?? '') === '!';
+		if ($neg) {
+			$i++;
 		}
+		if (($this->T[$i]['t'] ?? null) !== T_VARIABLE || ($this->T[$i + 1]['t'] ?? null) !== T_OBJECT_OPERATOR
+			|| ($this->T[$i + 2]['t'] ?? null) !== T_STRING || ($this->T[$i + 3]['s'] ?? '') !== '(') {
+			return null;
+		}
+		$recv = $this->vars[$this->T[$i]['s']] ?? ['k' => 'other'];
+		$method = $this->T[$i + 2]['s'];
+		$close = $this->close($i + 3);
+		if ($close + 1 !== $to || !in_array($method, self::GUARD_CALLS, true)) {
+			return null;
+		}
+		$args = $this->splitArgs($i + 3, $close);
+		$arg = isset($args[0]) ? $this->str($args[0]) : null;
+		if ($recv['k'] === 'schema' && $method === 'hasTable' && $arg !== null) {
+			$name = strtolower($arg);
+			return ['neg' => $neg, 'key' => "tbl:$name", 'table' => $name];
+		}
+		if ($recv['k'] !== 'table' || !isset($recv['name'])) {
+			return null;
+		}
+		$t = $recv['name'];
+		if ($method === 'hasColumn' && $arg !== null) {
+			return ['neg' => $neg, 'key' => "col:$t." . strtolower($arg), 'table' => null];
+		}
+		if (($method === 'hasIndex' || $method === 'hasUniqueConstraint') && $arg !== null) {
+			return ['neg' => $neg, 'key' => "idx:$t:" . strtolower($arg), 'table' => null];
+		}
+		if ($method === 'hasPrimaryKey' && $args === []) {
+			return ['neg' => $neg, 'key' => "idx:$t:PRIMARY", 'table' => null];
+		}
+		return null;
 	}
 
-	private function isGuard(int $from, int $to): bool {
-		for ($i = $from; $i < $to; $i++) {
-			$t = $this->T[$i];
-			if ($t['t'] === T_VARIABLE) {
-				if (!isset($this->vars[$t['s']]) || $this->vars[$t['s']]['k'] === 'other') {
-					return false;
+	/**
+	 * A guard only vouches for effects that create (guard "!hasX") or remove (guard "hasX") exactly the
+	 * object it tests; any other effect in its body need not have happened.
+	 * @param array{neg:bool,key:string,table:?string} $guard
+	 */
+	private function validateGuarded(array $guard, int $before): void {
+		$kept = array_slice($this->effects, 0, $before);
+		foreach (array_slice($this->effects, $before) as $e) {
+			$adds = in_array($e['op'], ['addColumn', 'createTable', 'addIndex', 'setPrimaryKey'], true);
+			if ($guard['table'] !== null) {
+				// "if (hasTable('x')) { ... }" changes x only when it exists; "if (!hasTable('x')) { ... }" creates it
+				$ok = $e['table'] === $guard['table'];
+				if ($ok && !$guard['neg']) {
+					$e['onlyIfTable'] = true;
 				}
-			} elseif ($t['t'] === T_STRING && ($this->T[$i + 1]['s'] ?? '') === '(') {
-				$prev = $this->T[$i - 1]['t'] ?? null;
-				if ($prev !== T_OBJECT_OPERATOR || !in_array($t['s'], self::GUARD_CALLS, true)) {
-					return false;
-				}
+			} else {
+				$ok = $adds === $guard['neg'] && effectKey($e) === $guard['key'];
+			}
+			if ($ok) {
+				$kept[] = $e;
+			} else {
+				$this->touched[$e['table']] = true;
+				$this->reasons['schema changes under a has*() guard that does not guarantee them are not verifiable'] = true;
 			}
 		}
-		return true;
+		$this->effects = $kept;
 	}
 
 	/** @return list<array{0:int,1:int}> */
@@ -828,9 +944,6 @@ final class EffectExtractor {
 			}
 			return;
 		}
-		if ($base['s'] === '$schemaClosure') {
-			return;
-		}
 		if (!isset($this->vars[$base['s']]) || $this->vars[$base['s']]['k'] === 'other') {
 			if ($touches) {
 				$this->touch($from, $to);
@@ -845,6 +958,19 @@ final class EffectExtractor {
 		// Parse the call chain: $var->call(...)->call(...)
 		$recv = $this->vars[$base['s']];
 		$i = $chainFrom + 1;
+		if ($recv['k'] === 'closure') {
+			// $schema = $schemaClosure();  binds whatever variable name the migration chose
+			if (($this->T[$i]['s'] ?? '') !== '(') {
+				$this->touch($from, $to);
+				$this->reason('the schema closure is used in a way that is not understood', $from);
+				if ($assignTo !== null) {
+					$this->vars[$assignTo] = ['k' => 'other'];
+				}
+				return;
+			}
+			$recv = ['k' => 'schema'];
+			$i = $this->close($i) + 1;
+		}
 		while ($i < $to) {
 			if ($this->T[$i]['t'] !== T_OBJECT_OPERATOR || ($this->T[$i + 1]['t'] ?? null) !== T_STRING
 				|| ($this->T[$i + 2]['s'] ?? '') !== '(') {
@@ -927,7 +1053,10 @@ final class EffectExtractor {
 			case 'addUniqueIndex':
 				$cols = isset($args[0]) ? $this->strList($args[0]) : null;
 				$idx = isset($args[1]) ? $this->str($args[1]) : null;
-				$this->record(['op' => 'addIndex', 'table' => $t, 'columns' => $cols, 'index' => $idx], $at, [$t, $cols]);
+				$this->record([
+					'op' => 'addIndex', 'table' => $t, 'columns' => $cols, 'index' => $idx,
+					'unique' => $method === 'addUniqueIndex',
+				], $at, [$t, $cols]);
 				return $other;
 			case 'setPrimaryKey':
 				$cols = isset($args[0]) ? $this->strList($args[0]) : null;
@@ -952,6 +1081,7 @@ final class EffectExtractor {
 	private function record(array $effect, int $at, array $required): void {
 		foreach ($required as $value) {
 			if ($value === null) {
+				$this->touched[($effect['table'] ?? null) ?: '*'] = true;
 				$this->reason($effect['op'] . ' with a name that is computed at runtime is not verifiable', $at);
 				return;
 			}
@@ -1008,11 +1138,29 @@ function supersedes(array $later, array $earlier): bool {
 	return in_array($later['op'], ['createTable', 'dropTable'], true) && $later['table'] === $earlier['table'];
 }
 
+/**
+ * Does a live index provide what addIndex()/addUniqueIndex() asked for? Unique needs exactly these columns
+ * and uniqueness (a wider unique index does not make the narrower combination unique). A plain index is
+ * also provided by a wider one starting with the same columns: Doctrine drops the redundant narrower
+ * index when the wider one is added.
+ * @param array{cols:list<string>,unique:bool} $idx
+ * @param list<string> $columns
+ */
+function indexSatisfies(array $idx, array $columns, bool $unique): bool {
+	if ($unique) {
+		return $idx['unique'] && $idx['cols'] === $columns;
+	}
+	return array_slice($idx['cols'], 0, count($columns)) === $columns;
+}
+
 /** @return ?string problem description, null if the effect is in place */
 function checkEffect(array $e, array $schema): ?string {
 	$table = $e['table'];
 	$tableExists = isset($schema['columns'][$table]);
 	$indexes = $schema['indexes'][$table] ?? [];
+	if (!$tableExists && ($e['onlyIfTable'] ?? false)) {
+		return null;
+	}
 	switch ($e['op']) {
 		case 'createTable':
 			return $tableExists ? null : 'table missing';
@@ -1029,26 +1177,23 @@ function checkEffect(array $e, array $schema): ?string {
 			if (!$tableExists) {
 				return 'table missing';
 			}
-			return ($indexes['PRIMARY'] ?? null) === $e['columns'] ? null : 'primary key missing or different';
+			return ($indexes['PRIMARY']['cols'] ?? null) === $e['columns'] ? null : 'primary key missing or different';
 		case 'dropPrimaryKey':
 			return isset($indexes['PRIMARY']) ? 'primary key still present' : null;
 		case 'addIndex':
 			if (!$tableExists) {
 				return 'table missing';
 			}
-			foreach ($indexes as $name => $cols) {
-				if (isset($e['index']) && strtolower((string)$name) === $e['index']) {
+			$sameName = false;
+			foreach ($indexes as $name => $idx) {
+				if (indexSatisfies($idx, $e['columns'], $e['unique'] ?? false)) {
 					return null;
 				}
-				// Doctrine drops an index that a wider index starting with the same columns makes
-				// redundant, so such a covering index counts as in effect.
-				if (isset($e['columns']) && array_slice($cols, 0, count($e['columns'])) === $e['columns']) {
-					return null;
-				}
+				$sameName = $sameName || (isset($e['index']) && strtolower((string)$name) === $e['index']);
 			}
-			return 'index missing';
+			return $sameName ? 'index exists with other columns or without being unique' : 'index missing';
 		case 'dropIndex':
-			foreach ($indexes as $name => $cols) {
+			foreach ($indexes as $name => $idx) {
 				if (strtolower((string)$name) === $e['index']) {
 					return 'index still present';
 				}
@@ -1087,23 +1232,37 @@ function scopeFilter(array $opts): ?Closure {
 }
 
 /**
- * Print the commands an admin has to run to repair the findings. Nothing is executed here.
- * @param array<string,list<string>> $fixes app => versions in execution order
+ * Print what an admin can do about the findings. Nothing is executed here.
+ * @param array<string,array{run:list<string>,review:array<string,string>}> $fixes
  */
 function printFix(array $fixes): void {
 	if ($fixes === []) {
 		return;
 	}
+	$run = array_filter($fixes, static fn (array $f): bool => $f['run'] !== []);
+	$review = array_filter($fixes, static fn (array $f): bool => $f['review'] !== []);
 	echo "== Suggested fix (run by an admin, this script changes nothing) ==\n";
-	echo "# Before: take a DB backup/snapshot and enable maintenance mode:  occ maintenance:mode --on\n";
-	echo "# migrations:execute is only available with debug on; NC_debug=true enables it for this one command only\n";
-	echo "# Run in this order; only migrations that are missing or not in effect are listed:\n";
-	foreach ($fixes as $app => $versions) {
-		foreach ($versions as $v) {
-			echo "NC_debug=true occ migrations:execute $app $v\n";
+	echo "# A replay runs the whole migration again, not only the part that is missing.\n";
+	if ($run !== []) {
+		echo "# Before: take a DB backup/snapshot and enable maintenance mode:  occ maintenance:mode --on\n";
+		echo "# migrations:execute is only available with debug on; NC_debug=true enables it for this one command only\n";
+		echo "# In this order:\n";
+		foreach ($run as $app => $f) {
+			foreach ($f['run'] as $v) {
+				echo "NC_debug=true occ migrations:execute $app $v\n";
+			}
+		}
+		echo "# After: occ maintenance:mode --off; then re-run this check\n";
+	}
+	if ($review !== []) {
+		echo "# Review by hand, no command suggested because a replay is not harmless:\n";
+		foreach ($review as $app => $f) {
+			foreach ($f['review'] as $v => $why) {
+				echo "#   $app $v: $why\n";
+			}
 		}
 	}
-	echo "# After: occ maintenance:mode --off; then re-run this check\n\n";
+	echo "\n";
 }
 
 /** Migration directory of an app; core keeps its migrations in core/Migrations. */
@@ -1194,10 +1353,26 @@ function checkApp(string $app, array $expected, array $applied, array $schema, s
 	}
 
 	$bad = $neverApplied !== [] || $notInEffect !== [] || ($strict && $unverifiable !== []);
-	$toRun = array_values(array_unique(array_merge($neverApplied, array_keys($notInEffect))));
-	usort($toRun, 'compareVersions');
-	if ($toRun !== []) {
-		$fixes[$app] = $toRun;
+	// Never applied migrations just run for the first time. Replaying an applied one repeats everything
+	// it does: drops (of things a later migration may have re-added) and data changes. Those need a human.
+	$run = $neverApplied;
+	$review = [];
+	foreach (array_keys($notInEffect) as $v) {
+		// A drop that a later migration undid (re-added column, recreated table) must not run again;
+		// a drop that is itself what is missing is the repair.
+		$destructive = array_filter($superseded[$v] ?? [], static fn (string $d): bool => str_starts_with($d, 'drop'));
+		$dataChanges = array_filter($extracted[$v]['reasons'], static fn (string $r): bool => str_starts_with($r, 'data changes'));
+		if ($destructive !== []) {
+			$review[$v] = 'it contains ' . implode(', ', array_map(static fn (string $d): string => preg_replace('/ \(.*$/', '', $d), $destructive)) . ' which a later migration undid; a replay would drop it again';
+		} elseif ($dataChanges !== []) {
+			$review[$v] = 'it changes data in pre/postSchemaChange(); a replay would repeat that';
+		} else {
+			$run[] = $v;
+		}
+	}
+	usort($run, 'compareVersions');
+	if ($run !== [] || $review !== []) {
+		$fixes[$app] = ['run' => $run, 'review' => $review];
 	}
 	$stats = [
 		'bad' => $bad,
@@ -1352,7 +1527,7 @@ function compactBlock(string $app, array $never, array $notInEffect, array $unve
 function main(array $argv): int {
 	$opts = getopt('h', [
 		'app:', 'app-path:', 'db', 'applied:', 'schema:', 'dump-applied', 'dump-schema',
-		'strict', 'verbose', 'help', 'config:', 'sqlite-file:', 'all', 'since-nc:'
+		'strict', 'verbose', 'help', 'config:', 'sqlite-file:', 'all', 'since-nc:', 'prefix:'
 	], $rest);
 	if (isset($opts['h']) || isset($opts['help'])) {
 		echo usage();
@@ -1412,6 +1587,7 @@ function main(array $argv): int {
 		$source = 'database';
 		$appliedByApp = $all ? dbAppliedAll($pdo, $prefix) : [$app => dbApplied($pdo, $app, $prefix)];
 	} else {
+		$prefix = isset($opts['prefix']) ? (string)$opts['prefix'] : (schemaFilePrefix((string)$opts['schema']) ?? 'oc_');
 		$schema = readSchemaFile((string)$opts['schema'], $prefix);
 		$source = 'files';
 		$appliedByApp = [$app => readAppliedFile((string)$opts['applied'])];
