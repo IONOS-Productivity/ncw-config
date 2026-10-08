@@ -415,15 +415,17 @@ final class EffectExtractor {
 	private bool $conditional = false;
 	/** True when every return in changeSchema() is "return null;": Nextcloud then applies none of its changes. */
 	private bool $returnsNull = false;
-	/** @var array<string,true> tables that code we could not interpret may have changed */
+	/** @var array<string,true> tables that code we could not interpret may have changed, also within this migration */
 	private array $touched = [];
+	/** @var array<string,true> tables a condition made uncertain for later migrations (not for this migration's own effects) */
+	private array $touchedLater = [];
 	/** @var array<string,true> effect keys that an early-return has*() guard already speaks about */
 	private array $guarded = [];
 	/** @var array<string,array{0:int,1:int}> method => [index of "(", index of ")"] */
 	private array $params = [];
 
 	/**
-	 * @return array{effects:list<array<string,mixed>>,reasons:list<string>,touched:list<string>}
+	 * @return array{effects:list<array<string,mixed>>,reasons:list<string>,touched:list<string>,touchedSelf:list<string>}
 	 */
 	public static function extract(string $source): array {
 		$self = new self();
@@ -464,7 +466,8 @@ final class EffectExtractor {
 		return [
 			'effects' => $self->effects,
 			'reasons' => array_keys($self->reasons),
-			'touched' => array_keys($self->touched),
+			'touched' => array_keys($self->touched + $self->touchedLater),
+			'touchedSelf' => array_keys($self->touched),
 		];
 	}
 
@@ -595,35 +598,31 @@ final class EffectExtractor {
 	}
 
 	/**
-	 * Remember which tables a range of uninterpreted code may touch: bound table variables and string
-	 * literals; when the code gets the schema or a table of unknown name but names no literal, any table.
+	 * Remember which tables a range of uninterpreted code may touch: the table of a bound table or column
+	 * variable, and any table when it gets the full schema or a table of unknown name (string literals
+	 * passed along say nothing about what a helper does).
 	 */
 	private function touch(int $from, int $to): void {
-		$literal = false;
-		$anyTable = false;
 		for ($i = $from; $i < $to && $i < count($this->T); $i++) {
 			$t = $this->T[$i];
 			if ($t['t'] === T_RETURN) {
-				// handing the schema back does not change a table
-				$i = $this->statementEnd($i, $to);
+				$end = $this->statementEnd($i, $to);
+				if ($end - $i === 2 && ($this->T[$i + 1]['t'] === T_VARIABLE || strtolower($this->T[$i + 1]['s']) === 'null')) {
+					$i = $end; // "return $schema;" hands the schema back, it does not change a table
+				}
 				continue;
 			}
-			if ($t['t'] === T_VARIABLE && isset($this->vars[$t['s']])) {
-				$var = $this->vars[$t['s']];
-				if ($var['k'] === 'table' && isset($var['name'])) {
-					$this->touched[$var['name']] = true;
-				} elseif ($var['k'] === 'column') {
-					$this->touched[strstr((string)($var['name'] ?? ''), '.', true) ?: '*'] = true;
-				} elseif ($var['k'] !== 'other') {
-					$anyTable = true;
-				}
-			} elseif ($t['t'] === T_CONSTANT_ENCAPSED_STRING) {
-				$this->touched[strtolower(substr($t['s'], 1, -1))] = true;
-				$literal = true;
+			if ($t['t'] !== T_VARIABLE || !isset($this->vars[$t['s']])) {
+				continue;
 			}
-		}
-		if ($anyTable && !$literal) {
-			$this->touched['*'] = true;
+			$var = $this->vars[$t['s']];
+			if ($var['k'] === 'table' && isset($var['name'])) {
+				$this->touched[$var['name']] = true;
+			} elseif ($var['k'] === 'column') {
+				$this->touched[strstr((string)($var['name'] ?? ''), '.', true) ?: '*'] = true;
+			} elseif ($var['k'] !== 'other') {
+				$this->touched['*'] = true;
+			}
 		}
 	}
 
@@ -649,12 +648,28 @@ final class EffectExtractor {
 				$this->walk($i + 1, $close, false);
 				$i = $close + 1;
 			} elseif ($tok['t'] === T_RETURN && $top) {
+				$this->inspectReturn($i, $this->statementEnd($i, $end));
 				return;
 			} else {
 				$stmtEnd = $this->statementEnd($i, $end);
 				$this->statement($i, $stmtEnd);
 				$i = $stmtEnd + 1;
 			}
+		}
+	}
+
+	/** "return null;" and "return $schema;" are fine; any other expression that gets the schema is uninterpreted. */
+	private function inspectReturn(int $from, int $to): void {
+		$single = $to - $from === 2;
+		if ($single && (strtolower($this->T[$from + 1]['s']) === 'null'
+			|| ($this->T[$from + 1]['t'] === T_VARIABLE && ($this->vars[$this->T[$from + 1]['s']]['k'] ?? '') === 'schema'))) {
+			return;
+		}
+		if ($this->mentions($from + 1, $to)) {
+			// e.g. "return $changed ? $schema : null": earlier effects may be thrown away
+			$this->discardEffects();
+			$this->touch($from + 1, $to);
+			$this->reason('return expression that gets the schema is not understood', $from);
 		}
 	}
 
@@ -744,6 +759,17 @@ final class EffectExtractor {
 			}
 		}
 
+		// "return null" under a condition discards everything recorded before it when it triggers
+		foreach ($branches as [, , $bf, $bt]) {
+			for ($k = $bf; $k + 2 < $bt + 1; $k++) {
+				if ($this->T[$k]['t'] === T_RETURN && strtolower($this->T[$k + 1]['s'] ?? '') === 'null'
+					&& ($this->T[$k + 2]['s'] ?? '') === ';') {
+					$this->discardEffects();
+					break 2;
+				}
+			}
+		}
+
 		$guard = count($branches) === 1 ? $this->parseGuard($branches[0][0], $branches[0][1]) : null;
 		if ($guard !== null) {
 			[, , $from, $to] = $branches[0];
@@ -787,11 +813,22 @@ final class EffectExtractor {
 		return $j;
 	}
 
+	/** Effects recorded so far may not happen at runtime (a later condition can return null), so stop asserting them. */
+	private function discardEffects(): void {
+		foreach ($this->effects as $e) {
+			$this->touched[$e['table']] = true;
+		}
+		if ($this->effects !== []) {
+			$this->reasons['a conditional "return null" can discard earlier schema changes of this migration, they are not verifiable'] = true;
+		}
+		$this->effects = [];
+	}
+
 	/**
 	 * Recognise exactly "[!]$x->hasColumn|hasIndex|hasUniqueConstraint|hasTable|hasPrimaryKey('name')".
 	 * The key is the effect key the guard speaks about; table is set for hasTable guards, whose body may
 	 * touch anything of that table.
-	 * @return ?array{neg:bool,key:string,table:?string}
+	 * @return ?array{neg:bool,key:string,table:?string,column?:array{0:string,1:string}}
 	 */
 	private function parseGuard(int $from, int $to): ?array {
 		$i = $from;
@@ -820,7 +857,7 @@ final class EffectExtractor {
 		}
 		$t = $recv['name'];
 		if ($method === 'hasColumn' && $arg !== null) {
-			return ['neg' => $neg, 'key' => "col:$t." . strtolower($arg), 'table' => null];
+			return ['neg' => $neg, 'key' => "col:$t." . strtolower($arg), 'table' => null, 'column' => [$t, strtolower($arg)]];
 		}
 		if (($method === 'hasIndex' || $method === 'hasUniqueConstraint') && $arg !== null) {
 			return ['neg' => $neg, 'key' => "idx:$t:" . strtolower($arg), 'table' => null];
@@ -834,7 +871,7 @@ final class EffectExtractor {
 	/**
 	 * A guard only vouches for effects that create (guard "!hasX") or remove (guard "hasX") exactly the
 	 * object it tests; any other effect in its body need not have happened.
-	 * @param array{neg:bool,key:string,table:?string} $guard
+	 * @param array{neg:bool,key:string,table:?string,column?:array{0:string,1:string}} $guard
 	 */
 	private function validateGuarded(array $guard, int $before): void {
 		$kept = array_slice($this->effects, 0, $before);
@@ -848,11 +885,17 @@ final class EffectExtractor {
 				}
 			} else {
 				$ok = $adds === $guard['neg'] && effectKey($e) === $guard['key'];
+				// "if (!hasColumn('c')) { addColumn('c'); addIndex(['c', ...]) }": the index belongs to the new column
+				if (!$ok && $guard['neg'] && isset($guard['column']) && $e['op'] === 'addIndex'
+					&& $e['table'] === $guard['column'][0] && in_array($guard['column'][1], $e['columns'], true)) {
+					$ok = true;
+				}
 			}
 			if ($ok) {
+				$e['guarded'] = true;
 				$kept[] = $e;
 			} else {
-				$this->touched[$e['table']] = true;
+				$this->touchedLater[$e['table']] = true;
 				$this->reasons['schema changes under a has*() guard that does not guarantee them are not verifiable'] = true;
 			}
 		}
@@ -925,6 +968,7 @@ final class EffectExtractor {
 		$touches = $this->mentions($from, $to);
 
 		if ($first['t'] === T_RETURN) {
+			$this->inspectReturn($from, $to);
 			return;
 		}
 		$assignTo = null;
@@ -1013,7 +1057,20 @@ final class EffectExtractor {
 				case 'hasTable':
 					return $other;
 				default:
-					$this->touched[$name === null ? '*' : strtolower($name)] = true;
+					// these only affect the table(s) named in their arguments, anything else may affect any table
+					$tableArgs = match ($method) {
+						'dropAutoincrementColumn' => [0],
+						'renameTable' => [0, 1],
+						default => null,
+					};
+					if ($tableArgs === null) {
+						$this->touched['*'] = true;
+					} else {
+						foreach ($tableArgs as $n) {
+							$arg = isset($args[$n]) ? $this->str($args[$n]) : null;
+							$this->touched[$arg === null ? '*' : strtolower($arg)] = true;
+						}
+					}
 					$this->reason("schema->$method() is not verifiable", $at);
 					return $other;
 			}
@@ -1047,6 +1104,7 @@ final class EffectExtractor {
 				return ['k' => 'column', 'name' => $t . '.' . $name];
 			case 'changeColumn':
 			case 'modifyColumn':
+				$this->touched[$t ?? '*'] = true;
 				$this->reason("column attribute change on $t.$name is not verifiable", $at);
 				return $other;
 			case 'addIndex':
@@ -1071,6 +1129,7 @@ final class EffectExtractor {
 				return $other;
 			default:
 				if (!in_array($method, self::IGNORED_TABLE_CALLS, true)) {
+					$this->touched[$t ?? '*'] = true;
 					$this->reason("table->$method() is not verifiable", $at);
 				}
 				return $other;
@@ -1094,10 +1153,13 @@ final class EffectExtractor {
 		if (isset($effect['columns'])) {
 			$effect['columns'] = array_map('strtolower', $effect['columns']);
 		}
-		if ($this->conditional && !isset($this->guarded[effectKey($effect)])) {
-			$this->touched[$effect['table']] = true;
-			$this->reasons['some schema changes follow a conditional early return and are not verifiable'] = true;
-			return;
+		if ($this->conditional) {
+			if (!isset($this->guarded[effectKey($effect)])) {
+				$this->touchedLater[$effect['table']] = true;
+				$this->reasons['some schema changes follow a conditional early return and are not verifiable'] = true;
+				return;
+			}
+			$effect['guarded'] = true;
 		}
 		$effect['line'] = $this->T[$at]['l'];
 		$this->effects[] = $effect;
@@ -1232,6 +1294,42 @@ function scopeFilter(array $opts): ?Closure {
 }
 
 /**
+ * Why running this migration (again) is not obviously safe, null if it is. A run executes the whole
+ * migration against the current schema, not only the part that is missing.
+ * @param array{effects:list<array<string,mixed>>,reasons:list<string>,touched:list<string>} $x
+ * @param array<string,array{effects:list<array<string,mixed>>,reasons:list<string>,touched:list<string>}> $applied extracted applied migrations
+ * @param list<array{0:string,1:array<string,mixed>}> $flat effects of the applied migrations in execution order
+ */
+function replayRisk(string $v, array $x, bool $wasApplied, array $applied, array $flat, array $schema): ?string {
+	foreach ($x['reasons'] as $r) {
+		if (str_starts_with($r, 'changeSchema() only ever returns null')
+			|| (!$wasApplied && str_starts_with($r, 'data changes'))) {
+			continue; // harmless, or the data changes simply run for the first time
+		}
+		return 'it contains code this check cannot verify (' . preg_replace('/ \(line \d+\)$/', '', $r) . ')';
+	}
+	foreach ($x['effects'] as $e) {
+		if (!($e['guarded'] ?? false) && checkEffect($e, $schema) === null) {
+			return 'a run would fail: ' . describeEffect($e) . ' is already in place and the migration does not check for it';
+		}
+		if (!str_starts_with($e['op'], 'drop')) {
+			continue;
+		}
+		foreach ($flat as [$laterVersion, $later]) {
+			if (compareVersions($laterVersion, $v) > 0 && supersedes($later, $e)) {
+				return 'it contains ' . describeEffect($e) . ' which a later migration (' . $laterVersion . ') undid; a run would drop it again';
+			}
+		}
+		foreach ($applied as $laterVersion => $later) {
+			if (compareVersions($laterVersion, $v) > 0 && (in_array($e['table'], $later['touched'], true) || in_array('*', $later['touched'], true))) {
+				return 'it contains ' . describeEffect($e) . ' and migration ' . $laterVersion . ' may have changed that table again (not verifiable)';
+			}
+		}
+	}
+	return null;
+}
+
+/**
  * Print what an admin can do about the findings. Nothing is executed here.
  * @param array<string,array{run:list<string>,review:array<string,string>}> $fixes
  */
@@ -1258,7 +1356,7 @@ function printFix(array $fixes, string $recheck): void {
 		echo "$recheck\n";
 	}
 	if ($review !== []) {
-		echo "# Review by hand, no command suggested because a replay is not harmless:\n";
+		echo "# Review by hand, no command suggested because running it is not obviously safe:\n";
 		foreach ($review as $app => $f) {
 			foreach ($f['review'] as $v => $why) {
 				echo "#   $app $v: $why\n";
@@ -1330,9 +1428,10 @@ function checkApp(string $app, array $expected, array $applied, array $schema, s
 		}
 		// A later migration with code we cannot interpret may have changed this table again.
 		foreach ($extracted as $laterVersion => $x) {
-			if (compareVersions($laterVersion, $v) > 0
-				&& (in_array($e['table'], $x['touched'], true) || in_array('*', $x['touched'], true))) {
-				$superseded[$v][] = describeEffect($e) . " (table may be changed by $laterVersion, not verifiable)";
+			$touched = $laterVersion === $v ? $x['touchedSelf'] : $x['touched'];
+			if (compareVersions($laterVersion, $v) >= 0
+				&& (in_array($e['table'], $touched, true) || in_array('*', $touched, true))) {
+				$superseded[$v][] = describeEffect($e) . ($laterVersion === $v ? ' (table may be changed again by code of this migration, not verifiable)' : " (table may be changed by $laterVersion, not verifiable)");
 				continue 2;
 			}
 		}
@@ -1356,21 +1455,22 @@ function checkApp(string $app, array $expected, array $applied, array $schema, s
 	}
 
 	$bad = $neverApplied !== [] || $notInEffect !== [] || ($strict && $unverifiable !== []);
-	// Never applied migrations just run for the first time. Replaying an applied one repeats everything
-	// it does: drops (of things a later migration may have re-added) and data changes. Those need a human.
-	$run = $neverApplied;
+	// Which migrations are safe to run again (or, for never applied ones, to run now)?
+	$run = [];
 	$review = [];
+	$candidates = [];
+	foreach ($neverApplied as $v) {
+		$candidates[$v] = [EffectExtractor::extract($expected[$v]), false];
+	}
 	foreach (array_keys($notInEffect) as $v) {
-		// A drop that a later migration undid (re-added column, recreated table) must not run again;
-		// a drop that is itself what is missing is the repair.
-		$destructive = array_filter($superseded[$v] ?? [], static fn (string $d): bool => str_starts_with($d, 'drop'));
-		$dataChanges = array_filter($extracted[$v]['reasons'], static fn (string $r): bool => str_starts_with($r, 'data changes'));
-		if ($destructive !== []) {
-			$review[$v] = 'it contains ' . implode(', ', array_map(static fn (string $d): string => preg_replace('/ \(.*$/', '', $d), $destructive)) . ' which a later migration undid; a replay would drop it again';
-		} elseif ($dataChanges !== []) {
-			$review[$v] = 'it changes data in pre/postSchemaChange(); a replay would repeat that';
-		} else {
+		$candidates[$v] = [$extracted[$v], true];
+	}
+	foreach ($candidates as $v => [$x, $wasApplied]) {
+		$why = replayRisk($v, $x, $wasApplied, $extracted, $flat, $schema);
+		if ($why === null) {
 			$run[] = $v;
+		} else {
+			$review[$v] = $why;
 		}
 	}
 	usort($run, 'compareVersions');
