@@ -35,7 +35,7 @@ read_app_list() {
 	grep -v '^[[:space:]]*#' "${_list_file}" | grep -v '^[[:space:]]*$' | tr '\n' ' '
 }
 
-DISABLED_APPS=$( read_app_list "${BDIR}/disabled-apps.list" )
+DISABLED_APPS=$( read_app_list "${SCRIPT_DIR}/disabled-apps.list" )
 
 #===============================================================================
 # Configuration Constants
