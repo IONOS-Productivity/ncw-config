@@ -45,9 +45,9 @@ Options:
   --schema FILE    Schema dump as produced by --dump-schema
   --dump-applied   Print the applied versions of APP and exit
   --dump-schema    Print the live schema (table/column/index names) and exit
-  --since-root DIR  Only migrations missing from this older Nextcloud tree (e.g. a 31
-                   checkout): what an upgrade from it should have run
-  --since-date D   Only migrations dated on or after D (YYYYMMDD)
+  --since-nc N     Only migrations written after Nextcloud N was branched (stable N cut from
+                   master), i.e. what an upgrade from N to a later release should have run,
+                   e.g. --since-nc 31 for the 31 -> 32 -> 33 path. Known: 28 to 33.
   --strict         Treat "not verifiable" migrations as findings too
   --verbose        Also list verified and superseded schema effects
   -h, --help       This help
@@ -1022,31 +1022,31 @@ function checkEffect(array $e, array $schema): ?string {
 }
 
 /**
- * Limit the report to migrations that belong to an upgrade window:
- *   --since-root DIR   Nextcloud tree from before the upgrade (e.g. the 31 release);
- *                      migrations that already exist there are out of scope
- *   --since-date D     only migrations whose Date stamp is on or after D (YYYYMMDD)
+ * Date (YYYYMMDD) on which stable<N> was cut from master in nextcloud/server
+ * (merge-base of stable<N> and master). Migrations are stamped with the date they were written, so
+ * one dated on or after this day is not part of Nextcloud N. This is an approximation: apps are
+ * branched on their own schedule, so a migration written shortly before an app's own cut can be missed.
  */
-function scopeFilter(string $app, array $opts, string $ncRoot): ?Closure {
-	$old = null;
-	if (isset($opts['since-root'])) {
-		$root = rtrim((string)$opts['since-root'], '/');
-		$dir = migrationDir($app, $root, null, []);
-		$old = $dir !== null && is_dir($dir) ? dirMigrations($dir) : [];
-	}
-	$since = isset($opts['since-date']) ? (string)$opts['since-date'] : null;
-	if ($since !== null && preg_match('/^\d{8}$/', $since) !== 1) {
-		fail('--since-date must be YYYYMMDD');
-	}
-	if ($old === null && $since === null) {
+const NC_BRANCH_DATES = [
+	28 => '20231123',
+	29 => '20240328',
+	30 => '20240814',
+	31 => '20250123',
+	32 => '20250904',
+	33 => '20260122',
+];
+
+/** Limit the report to migrations that an upgrade from the given Nextcloud major version should have run. */
+function scopeFilter(array $opts): ?Closure {
+	if (!isset($opts['since-nc'])) {
 		return null;
 	}
-	return static function (string $version) use ($old, $since): bool {
-		if ($old !== null && isset($old[$version])) {
-			return false;
-		}
-		return $since === null || (preg_match('/Date(\d{8})/', $version, $m) === 1 && $m[1] >= $since);
-	};
+	$nc = (int)$opts['since-nc'];
+	if (!isset(NC_BRANCH_DATES[$nc])) {
+		fail('--since-nc must be one of ' . implode(', ', array_keys(NC_BRANCH_DATES)));
+	}
+	$since = NC_BRANCH_DATES[$nc];
+	return static fn (string $version): bool => preg_match('/Date(\d{8})/', $version, $m) === 1 && $m[1] >= $since;
 }
 
 /**
@@ -1229,7 +1229,7 @@ function checkApp(string $app, array $expected, array $applied, array $schema, s
 function main(array $argv): int {
 	$opts = getopt('h', [
 		'app:', 'app-path:', 'db', 'applied:', 'schema:', 'dump-applied', 'dump-schema',
-		'strict', 'verbose', 'help', 'config:', 'sqlite-file:', 'all', 'since-root:', 'since-date:'
+		'strict', 'verbose', 'help', 'config:', 'sqlite-file:', 'all', 'since-nc:'
 	], $rest);
 	if (isset($opts['h']) || isset($opts['help'])) {
 		echo usage();
@@ -1310,7 +1310,7 @@ function main(array $argv): int {
 		if ($expected === [] && !$all) {
 			fail("no migrations found in $dir");
 		}
-		$bad = checkApp($name, $expected, $applied, $schema, $prefix, $source, $verbose, $strict, $all, scopeFilter($name, $opts, $ncRoot), $fixes) || $bad;
+		$bad = checkApp($name, $expected, $applied, $schema, $prefix, $source, $verbose, $strict, $all, scopeFilter($opts), $fixes) || $bad;
 		if ($all) {
 			echo "\n";
 		}
