@@ -54,7 +54,8 @@ Options:
 
 Database connection: taken from the Nextcloud config (config/config.php and
 config/*.config.php), nothing is passed on the command line or printed.
-  --config DIR     Nextcloud config directory (default: <nextcloud root>/config)
+  --config DIR     Nextcloud config directory (default: $NEXTCLOUD_CONFIG_DIR, else the
+                   config/ of the Nextcloud root this script lives in; not the current directory)
   --sqlite-file F  sqlite only: use this file instead of <datadirectory>/owncloud.db
 
 Expected migrations: the Version*.php files in DIR/lib/Migration, i.e. what is
@@ -1337,7 +1338,7 @@ function main(array $argv): int {
 	$config = [];
 	$prefix = 'oc_';
 	if ($useDb) {
-		$config = loadNcConfig((string)($opts['config'] ?? "$ncRoot/config"));
+		$config = loadNcConfig((string)(($opts['config'] ?? '') ?: getenv('NEXTCLOUD_CONFIG_DIR') ?: "$ncRoot/config"));
 		$prefix = (string)($config['dbtableprefix'] ?? 'oc_');
 	}
 	$sqliteFile = isset($opts['sqlite-file']) ? (string)$opts['sqlite-file'] : null;
