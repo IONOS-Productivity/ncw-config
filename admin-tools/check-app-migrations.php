@@ -398,6 +398,7 @@ function dumpSchema(PDO $pdo, string $prefix): void {
 final class EffectExtractor {
 	private const LOOPS = [T_FOREACH, T_FOR, T_WHILE, T_DO, T_SWITCH, T_TRY, T_MATCH];
 	private const GUARD_CALLS = ['hasColumn', 'hasIndex', 'hasTable', 'hasPrimaryKey', 'hasUniqueConstraint'];
+	private const PURE_FUNCTIONS = ['isset', 'empty', 'count', 'in_array', 'is_array', 'is_null', 'strtolower', 'strtoupper'];
 	private const IGNORED_TABLE_CALLS = [
 		'hasColumn', 'hasIndex', 'hasPrimaryKey', 'hasUniqueConstraint', 'getName', 'addOption', 'setComment',
 	];
@@ -628,6 +629,24 @@ final class EffectExtractor {
 		}
 	}
 
+	/**
+	 * Code in changeSchema() that never touches the schema can still do things a replay would repeat
+	 * (a DB statement, a config change). Any call other than on $output and a few pure functions counts.
+	 */
+	private function noteOpaque(int $from, int $to): void {
+		for ($i = $from; $i < $to && $i + 1 < count($this->T); $i++) {
+			if ($this->T[$i]['s'] === '$output' && ($this->T[$i + 1]['t'] ?? null) === T_OBJECT_OPERATOR) {
+				$i += 2; // $output->info(...) only prints
+				continue;
+			}
+			if ($this->T[$i + 1]['s'] === '(' && in_array($this->T[$i]['t'], [T_STRING, T_VARIABLE], true)
+				&& !in_array(strtolower($this->T[$i]['s']), self::PURE_FUNCTIONS, true)) {
+				$this->reason('changeSchema() runs code that is not interpreted', $i);
+				return;
+			}
+		}
+	}
+
 	private function mentions(int $from, int $to): bool {
 		for ($i = $from; $i < $to; $i++) {
 			if ($this->T[$i]['t'] === T_VARIABLE && isset($this->vars[$this->T[$i]['s']])
@@ -665,6 +684,10 @@ final class EffectExtractor {
 		$single = $to - $from === 2;
 		if ($single && (strtolower($this->T[$from + 1]['s']) === 'null'
 			|| ($this->T[$from + 1]['t'] === T_VARIABLE && ($this->vars[$this->T[$from + 1]['s']]['k'] ?? '') === 'schema'))) {
+			return;
+		}
+		if (!$this->mentions($from + 1, $to)) {
+			$this->noteOpaque($from + 1, $to);
 			return;
 		}
 		if ($this->mentions($from + 1, $to)) {
@@ -714,6 +737,9 @@ final class EffectExtractor {
 				$this->conditional = true;
 				break;
 			}
+		}
+		if (!$this->mentions($start, $j)) {
+			$this->noteOpaque($start, $j);
 		}
 		if ($this->mentions($start, $j)) {
 			$this->touch($start, $j);
@@ -807,6 +833,10 @@ final class EffectExtractor {
 			}
 		}
 		foreach ($branches as [$cf, $ct, $bf, $bt]) {
+			if (!$this->mentions($cf, $ct) && !$this->mentions($bf, $bt)) {
+				$this->noteOpaque($cf, $ct);
+				$this->noteOpaque($bf, $bt);
+			}
 			if ($this->mentions($cf, $ct) || $this->mentions($bf, $bt)) {
 				foreach ($branches as [$tcf, $tct, $tf, $tt]) {
 					$this->touch($tcf, $tct);
@@ -991,6 +1021,8 @@ final class EffectExtractor {
 			if ($touches) {
 				$this->touch($from, $to);
 				$this->reason('statement touching the schema is not understood', $from);
+			} else {
+				$this->noteOpaque($from, $to);
 			}
 			if ($assignTo !== null) {
 				$this->vars[$assignTo] = ['k' => 'other'];
@@ -1001,6 +1033,8 @@ final class EffectExtractor {
 			if ($touches) {
 				$this->touch($from, $to);
 				$this->reason('schema passed to code that is not parsed', $from);
+			} else {
+				$this->noteOpaque($from, $to);
 			}
 			if ($assignTo !== null) {
 				$this->vars[$assignTo] = ['k' => 'other'];
