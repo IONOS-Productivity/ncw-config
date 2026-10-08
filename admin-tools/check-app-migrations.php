@@ -419,8 +419,10 @@ final class EffectExtractor {
 	private array $touched = [];
 	/** @var array<string,true> tables a condition made uncertain for later migrations (not for this migration's own effects) */
 	private array $touchedLater = [];
-	/** @var array<string,true> effect keys that an early-return has*() guard already speaks about */
+	/** @var array<string,array<string,mixed>> early-return has*() guards by the effect key they speak about; "neg" tells when the code after them runs */
 	private array $guarded = [];
+	/** @var list<array<string,mixed>> guards of the if() blocks around the code being walked */
+	private array $guardStack = [];
 	/** @var array<string,array{0:int,1:int}> method => [index of "(", index of ")"] */
 	private array $params = [];
 
@@ -781,12 +783,15 @@ final class EffectExtractor {
 				return $j;
 			}
 			$before = count($this->effects);
+			$this->guardStack[] = $guard;
 			$this->walk($from, $to, false);
+			array_pop($this->guardStack);
 			$this->validateGuarded($guard, $before);
 			for ($k = $from; $k < $to; $k++) {
 				if ($this->T[$k]['t'] === T_RETURN) {
 					$this->conditional = true;
-					$this->guarded[$guard['key']] = true;
+					// the code after "if (X) { return; }" runs when X is false
+					$this->guarded[$guard['key']] = ['neg' => !$guard['neg']] + $guard;
 					break;
 				}
 			}
@@ -803,7 +808,8 @@ final class EffectExtractor {
 		}
 		foreach ($branches as [$cf, $ct, $bf, $bt]) {
 			if ($this->mentions($cf, $ct) || $this->mentions($bf, $bt)) {
-				foreach ($branches as [, , $tf, $tt]) {
+				foreach ($branches as [$tcf, $tct, $tf, $tt]) {
+					$this->touch($tcf, $tct);
 					$this->touch($tf, $tt);
 				}
 				$this->reason('schema changes under a condition that is not a plain has*() guard are not verifiable', $i);
@@ -892,7 +898,6 @@ final class EffectExtractor {
 				}
 			}
 			if ($ok) {
-				$e['guarded'] = true;
 				$kept[] = $e;
 			} else {
 				$this->touchedLater[$e['table']] = true;
@@ -937,6 +942,10 @@ final class EffectExtractor {
 	}
 
 	/** @return ?list<string> */
+	private function isNullLiteral(array $range): bool {
+		return $range[1] - $range[0] === 1 && strtolower($this->T[$range[0]]['s']) === 'null';
+	}
+
 	private function strList(array $range): ?array {
 		[$a, $b] = $range;
 		if ($this->T[$a]['s'] === '[' && $this->close($a) === $b - 1) {
@@ -1111,10 +1120,12 @@ final class EffectExtractor {
 			case 'addUniqueIndex':
 				$cols = isset($args[0]) ? $this->strList($args[0]) : null;
 				$idx = isset($args[1]) ? $this->str($args[1]) : null;
+				// an omitted or literal null name is fine, a name that is computed is not
+				$computedName = isset($args[1]) && $idx === null && !$this->isNullLiteral($args[1]);
 				$this->record([
 					'op' => 'addIndex', 'table' => $t, 'columns' => $cols, 'index' => $idx,
 					'unique' => $method === 'addUniqueIndex',
-				], $at, [$t, $cols]);
+				], $at, [$t, $cols, $computedName ? null : true]);
 				return $other;
 			case 'setPrimaryKey':
 				$cols = isset($args[0]) ? $this->strList($args[0]) : null;
@@ -1159,8 +1170,25 @@ final class EffectExtractor {
 				$this->reasons['some schema changes follow a conditional early return and are not verifiable'] = true;
 				return;
 			}
-			$effect['guarded'] = true;
 		}
+		$key = effectKey($effect);
+		$guards = $this->guardStack;
+		if ($this->conditional) {
+			$guards[] = $this->guarded[$key];
+		}
+		// An operation can be repeated without failing only if its own object is checked, or the whole
+		// block is skipped when the table exists ("if (!hasTable('t')) { create t and fill it }").
+		$adds = in_array($effect['op'], ['addColumn', 'createTable', 'addIndex', 'setPrimaryKey'], true);
+		$protected = false;
+		foreach ($guards as $g) {
+			if ($g['table'] !== null) {
+				$protected = $protected || ($g['neg'] && $g['table'] === $effect['table']);
+			} else {
+				$protected = $protected || ($g['key'] === $key && $adds === $g['neg']);
+			}
+		}
+		$effect['guards'] = $guards;
+		$effect['protected'] = $protected;
 		$effect['line'] = $this->T[$at]['l'];
 		$this->effects[] = $effect;
 	}
@@ -1293,31 +1321,81 @@ function scopeFilter(array $opts): ?Closure {
 	return static fn (string $version): bool => preg_match('/Date(\d{8})/', $version, $m) === 1 && $m[1] >= $since;
 }
 
+/** Does the object a guard tests exist in the current schema? */
+function guardObjectExists(string $key, array $schema): bool {
+	if (str_starts_with($key, 'tbl:')) {
+		return isset($schema['columns'][substr($key, 4)]);
+	}
+	if (str_starts_with($key, 'col:')) {
+		[$table, $column] = explode('.', substr($key, 4), 2);
+		return isset($schema['columns'][$table][$column]);
+	}
+	// idx:<table>:<name>
+	[, $table, $name] = explode(':', $key, 3);
+	foreach ($schema['indexes'][$table] ?? [] as $existing => $idx) {
+		if (strtolower((string)$existing) === strtolower($name)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function isAddOp(array $e): bool {
+	return in_array($e['op'], ['addColumn', 'createTable', 'addIndex', 'setPrimaryKey'], true);
+}
+
 /**
  * Why running this migration (again) is not obviously safe, null if it is. A run executes the whole
- * migration against the current schema, not only the part that is missing.
+ * migration against the current schema, not only the part that is missing, so besides code the check
+ * cannot interpret it has to be clear that every operation can run now, that the guards around the
+ * missing parts let them run, and that no later migration undid what the run would do.
  * @param array{effects:list<array<string,mixed>>,reasons:list<string>,touched:list<string>} $x
  * @param array<string,array{effects:list<array<string,mixed>>,reasons:list<string>,touched:list<string>}> $applied extracted applied migrations
  * @param list<array{0:string,1:array<string,mixed>}> $flat effects of the applied migrations in execution order
  */
 function replayRisk(string $v, array $x, bool $wasApplied, array $applied, array $flat, array $schema): ?string {
 	foreach ($x['reasons'] as $r) {
-		if (str_starts_with($r, 'changeSchema() only ever returns null')
-			|| (!$wasApplied && str_starts_with($r, 'data changes'))) {
-			continue; // harmless, or the data changes simply run for the first time
+		if (!$wasApplied && str_starts_with($r, 'data changes')) {
+			continue; // simply runs for the first time
+		}
+		if (str_starts_with($r, 'changeSchema() only ever returns null')) {
+			return 'it only returns null, so Nextcloud would just record it as applied without changing the schema';
 		}
 		return 'it contains code this check cannot verify (' . preg_replace('/ \(line \d+\)$/', '', $r) . ')';
 	}
-	foreach ($x['effects'] as $e) {
-		if (!($e['guarded'] ?? false) && checkEffect($e, $schema) === null) {
-			return 'a run would fail: ' . describeEffect($e) . ' is already in place and the migration does not check for it';
-		}
-		if (!str_starts_with($e['op'], 'drop')) {
-			continue;
+	foreach ($x['effects'] as $pos => $e) {
+		$problem = checkEffect($e, $schema);
+		if ($problem === null) {
+			if (!$e['protected']) {
+				return 'a run would fail: ' . describeEffect($e) . ' is already in place and the migration does not check for it';
+			}
+		} else {
+			foreach ($e['guards'] as $g) {
+				if ($g['neg'] === guardObjectExists($g['key'], $schema)) {
+					return 'its guard around ' . describeEffect($e) . ' would skip the block now, so a run would not repair it';
+				}
+			}
+			$earlierDrops = array_slice($x['effects'], 0, $pos);
+			if ($e['op'] === 'addIndex' && isset($e['index'])) {
+				foreach ($schema['indexes'][$e['table']] ?? [] as $existing => $idx) {
+					$dropped = array_filter($earlierDrops, static fn (array $d): bool => $d['op'] === 'dropIndex' && $d['table'] === $e['table'] && $d['index'] === $e['index']);
+					if (strtolower((string)$existing) === $e['index'] && $dropped === []) {
+						return 'a run would fail: the index name of ' . describeEffect($e) . ' is taken by a different index';
+					}
+				}
+			}
+			if ($e['op'] === 'setPrimaryKey' && isset($schema['indexes'][$e['table']]['PRIMARY'])
+				&& array_filter($earlierDrops, static fn (array $d): bool => $d['op'] === 'dropPrimaryKey' && $d['table'] === $e['table']) === []) {
+				return 'a run would fail: ' . $e['table'] . ' already has a different primary key';
+			}
 		}
 		foreach ($flat as [$laterVersion, $later]) {
-			if (compareVersions($laterVersion, $v) > 0 && supersedes($later, $e)) {
-				return 'it contains ' . describeEffect($e) . ' which a later migration (' . $laterVersion . ') undid; a run would drop it again';
+			if (compareVersions($laterVersion, $v) <= 0 || !supersedes($later, $e)) {
+				continue;
+			}
+			$tableLevel = in_array($later['op'], ['createTable', 'dropTable'], true);
+			if ($tableLevel || isAddOp($later) !== isAddOp($e)) {
+				return 'it contains ' . describeEffect($e) . ' which a later migration (' . $laterVersion . ') undid with ' . describeEffect($later) . '; a run would redo it';
 			}
 		}
 		foreach ($applied as $laterVersion => $later) {
@@ -1333,7 +1411,7 @@ function replayRisk(string $v, array $x, bool $wasApplied, array $applied, array
  * Print what an admin can do about the findings. Nothing is executed here.
  * @param array<string,array{run:list<string>,review:array<string,string>}> $fixes
  */
-function printFix(array $fixes, string $recheck): void {
+function printFix(array $fixes, string $recheck, bool $fromFiles): void {
 	if ($fixes === []) {
 		return;
 	}
@@ -1345,14 +1423,19 @@ function printFix(array $fixes, string $recheck): void {
 	if ($run !== []) {
 		echo "# Before: take a DB backup/snapshot and enable maintenance mode:  occ maintenance:mode --on\n";
 		echo "# migrations:execute is only available with debug on; NC_debug=true enables it for this one command only\n";
-		echo "# In this order:\n";
+		echo "# In this order, one chain: nothing runs after a failed migration:\n";
+		$lines = [];
 		foreach ($run as $app => $f) {
 			foreach ($f['run'] as $v) {
 				// migrations:execute prints nothing on success, so make the exit code visible
-				echo "NC_debug=true occ migrations:execute $app $v && echo \"OK: $app $v\"\n";
+				$lines[] = "NC_debug=true occ migrations:execute $app $v && echo \"OK: $app $v\"";
 			}
 		}
+		echo implode(" \\\n\t&& ", $lines) . "\n";
 		echo "# After: occ maintenance:mode --off; then check the result (expect no findings left):\n";
+		if ($fromFiles) {
+			echo "# (this run read dump files: take new ones with --dump-applied and --dump-schema first)\n";
+		}
 		echo "$recheck\n";
 	}
 	if ($review !== []) {
@@ -1722,8 +1805,12 @@ function main(array $argv): int {
 	if ($all) {
 		printOverview($results, $prefix, $source, $opts);
 	}
-	$recheck = $argv[0] . ($all ? ' --all --db' : ' --app ' . $app . ' --db') . (isset($opts['since-nc']) ? ' --since-nc ' . (int)$opts['since-nc'] : '');
-	printFix($fixes, $recheck);
+	// the same check again: same arguments, quoted for a shell
+	$recheck = implode(' ', array_map(
+		static fn (string $a): string => preg_match('/^[A-Za-z0-9_.\/=:@%+,-]+$/', $a) === 1 ? $a : escapeshellarg($a),
+		$argv
+	));
+	printFix($fixes, $recheck, !$useDb);
 	if ($skipped !== []) {
 		echo 'Skipped (not on disk, e.g. disabled or removed apps): ' . implode(', ', $skipped) . "\n";
 	}
