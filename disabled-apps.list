@@ -4,6 +4,7 @@
 # Empty lines are also ignored
 
 workflowengine
+whiteboard
 
 # we removed the fulltextsearch app and its dependencies
 files_fulltextsearch
