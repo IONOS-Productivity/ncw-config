@@ -389,6 +389,8 @@ final class EffectExtractor {
 	/** @var array<string,true> */
 	public array $reasons = [];
 	private bool $conditional = false;
+	/** True when changeSchema() ends with "return null;": Nextcloud then applies none of its changes. */
+	private bool $returnsNull = false;
 	/** @var array<string,true> tables that code we could not interpret may have changed */
 	private array $touched = [];
 	/** @var array<string,true> effect keys that an early-return has*() guard already speaks about */
@@ -422,6 +424,12 @@ final class EffectExtractor {
 		if (isset($methods['changeSchema'])) {
 			$self->vars = ['$schema' => ['k' => 'schema']];
 			$self->walk($methods['changeSchema'][0], $methods['changeSchema'][1], true);
+		}
+		if ($self->returnsNull && $self->effects !== []) {
+			// MigrationService::executeStep() only migrates when a schema wrapper is returned, so these
+			// effects never happen and re-running the migration cannot create them.
+			$self->effects = [];
+			$self->reasons['changeSchema() ends with "return null;": Nextcloud discards its schema changes, they are never applied (defect in the app)'] = true;
 		}
 		return [
 			'effects' => $self->effects,
@@ -540,6 +548,7 @@ final class EffectExtractor {
 				$this->walk($i + 1, $close, false);
 				$i = $close + 1;
 			} elseif ($tok['t'] === T_RETURN && $top) {
+				$this->returnsNull = strtolower($this->T[$i + 1]['s'] ?? '') === 'null' && ($this->T[$i + 2]['s'] ?? '') === ';';
 				return;
 			} else {
 				$stmtEnd = $this->statementEnd($i, $end);
