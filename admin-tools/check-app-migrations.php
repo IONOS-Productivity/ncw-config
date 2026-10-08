@@ -630,21 +630,45 @@ final class EffectExtractor {
 	}
 
 	/**
-	 * Code in changeSchema() that never touches the schema can still do things a replay would repeat
-	 * (a DB statement, a config change). Any call other than on $output and a few pure functions counts.
+	 * Index of the first call in the range that a replay would repeat without us knowing what it does:
+	 * any call other than on $output and a few pure functions, however the name is written.
 	 */
-	private function noteOpaque(int $from, int $to): void {
+	private function findOpaque(int $from, int $to): ?int {
 		for ($i = $from; $i < $to && $i + 1 < count($this->T); $i++) {
 			if ($this->T[$i]['s'] === '$output' && ($this->T[$i + 1]['t'] ?? null) === T_OBJECT_OPERATOR) {
 				$i += 2; // $output->info(...) only prints
 				continue;
 			}
-			if ($this->T[$i + 1]['s'] === '(' && in_array($this->T[$i]['t'], [T_STRING, T_VARIABLE], true)
+			if ($this->T[$i + 1]['s'] === '('
+				&& in_array($this->T[$i]['t'], [T_STRING, T_VARIABLE, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_NAME_RELATIVE], true)
 				&& !in_array(strtolower($this->T[$i]['s']), self::PURE_FUNCTIONS, true)) {
-				$this->reason('changeSchema() runs code that is not interpreted', $i);
-				return;
+				return $i;
 			}
 		}
+		return null;
+	}
+
+	/** Code in changeSchema() that never touches the schema can still do things a replay would repeat (a DB statement). */
+	private function noteOpaque(int $from, int $to): void {
+		$i = $this->findOpaque($from, $to);
+		if ($i !== null) {
+			$this->reason('changeSchema() runs code that is not interpreted', $i);
+		}
+	}
+
+	/** A return we cannot place: the code after it only runs conditionally and earlier guard proofs no longer hold. */
+	private function unknownEarlyReturn(): void {
+		$this->conditional = true;
+		$this->guarded = [];
+	}
+
+	private function rangeReturnsNull(int $from, int $to): bool {
+		for ($k = $from; $k + 2 <= $to && $k + 2 < count($this->T); $k++) {
+			if ($this->T[$k]['t'] === T_RETURN && strtolower($this->T[$k + 1]['s'] ?? '') === 'null' && ($this->T[$k + 2]['s'] ?? '') === ';') {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private function mentions(int $from, int $to): bool {
@@ -679,23 +703,20 @@ final class EffectExtractor {
 		}
 	}
 
-	/** "return null;" and "return $schema;" are fine; any other expression that gets the schema is uninterpreted. */
+	/** "return null;" and "return $schema;" are fine; any other return value is not understood and may discard the changes. */
 	private function inspectReturn(int $from, int $to): void {
 		$single = $to - $from === 2;
 		if ($single && (strtolower($this->T[$from + 1]['s']) === 'null'
 			|| ($this->T[$from + 1]['t'] === T_VARIABLE && ($this->vars[$this->T[$from + 1]['s']]['k'] ?? '') === 'schema'))) {
 			return;
 		}
-		if (!$this->mentions($from + 1, $to)) {
-			$this->noteOpaque($from + 1, $to);
-			return;
-		}
+		$this->noteOpaque($from + 1, $to);
 		if ($this->mentions($from + 1, $to)) {
-			// e.g. "return $changed ? $schema : null": earlier effects may be thrown away
-			$this->discardEffects();
 			$this->touch($from + 1, $to);
-			$this->reason('return expression that gets the schema is not understood', $from);
 		}
+		// e.g. "return $changed ? $schema : null" or "return $result": earlier effects may be thrown away
+		$this->discardEffects();
+		$this->reason('return value that is not the schema or null is not understood', $from);
 	}
 
 	private function statementEnd(int $i, int $end): int {
@@ -734,7 +755,10 @@ final class EffectExtractor {
 		}
 		for ($k = $start; $k < $j; $k++) {
 			if ($this->T[$k]['t'] === T_RETURN) {
-				$this->conditional = true;
+				$this->unknownEarlyReturn();
+				if ($this->rangeReturnsNull($start, $j)) {
+					$this->discardEffects();
+				}
 				break;
 			}
 		}
@@ -789,12 +813,9 @@ final class EffectExtractor {
 
 		// "return null" under a condition discards everything recorded before it when it triggers
 		foreach ($branches as [, , $bf, $bt]) {
-			for ($k = $bf; $k + 2 < $bt + 1; $k++) {
-				if ($this->T[$k]['t'] === T_RETURN && strtolower($this->T[$k + 1]['s'] ?? '') === 'null'
-					&& ($this->T[$k + 2]['s'] ?? '') === ';') {
-					$this->discardEffects();
-					break 2;
-				}
+			if ($this->rangeReturnsNull($bf, $bt)) {
+				$this->discardEffects();
+				break;
 			}
 		}
 
@@ -826,8 +847,8 @@ final class EffectExtractor {
 		foreach ($branches as [$cf, $ct, $bf, $bt]) {
 			for ($k = $bf; $k < $bt; $k++) {
 				if ($this->T[$k]['t'] === T_RETURN) {
-					// the rest of changeSchema() may be skipped at runtime
-					$this->conditional = true;
+					// the rest of changeSchema() may be skipped at runtime, whatever a guard proved before
+					$this->unknownEarlyReturn();
 					break 2;
 				}
 			}
@@ -1069,6 +1090,12 @@ final class EffectExtractor {
 			$method = $this->T[$i + 1]['s'];
 			$close = $this->close($i + 2);
 			$args = $this->splitArgs($i + 2, $close);
+			$opaque = $this->findOpaque($i + 2, $close);
+			if ($opaque !== null) {
+				// e.g. addColumn('c', ..., ['default' => $this->compute($table)])
+				$this->touch($i + 2, $close);
+				$this->reason('changeSchema() runs code that is not interpreted', $opaque);
+			}
 			$recv = $this->call($recv, $method, $args, $i);
 			$i = $close + 1;
 		}
@@ -1208,7 +1235,8 @@ final class EffectExtractor {
 		$key = effectKey($effect);
 		$guards = $this->guardStack;
 		if ($this->conditional) {
-			$guards[] = $this->guarded[$key];
+			// every early-return guard seen so far has to let the code through
+			$guards = array_merge($guards, array_values($this->guarded));
 		}
 		// An operation can be repeated without failing only if its own object is checked, or the whole
 		// block is skipped when the table exists ("if (!hasTable('t')) { create t and fill it }").
@@ -1410,6 +1438,22 @@ function replayRisk(string $v, array $x, bool $wasApplied, array $applied, array
 				}
 			}
 			$earlierDrops = array_slice($x['effects'], 0, $pos);
+			// the table and the columns an operation needs must exist, or be created by an earlier step of this migration
+			if (in_array($e['op'], ['addColumn', 'addIndex', 'setPrimaryKey'], true)) {
+				$createdTables = array_column(array_filter($earlierDrops, static fn (array $d): bool => $d['op'] === 'createTable'), 'table');
+				if (!isset($schema['columns'][$e['table']]) && !in_array($e['table'], $createdTables, true)) {
+					return 'a run would fail: table ' . $e['table'] . ' does not exist for ' . describeEffect($e);
+				}
+				$addedColumns = array_map(
+					static fn (array $d): string => $d['table'] . '.' . $d['column'],
+					array_filter($earlierDrops, static fn (array $d): bool => $d['op'] === 'addColumn')
+				);
+				foreach ($e['columns'] ?? [] as $column) {
+					if (!isset($schema['columns'][$e['table']][$column]) && !in_array($e['table'] . '.' . $column, $addedColumns, true)) {
+						return 'a run would fail: column ' . $e['table'] . '.' . $column . ' does not exist for ' . describeEffect($e);
+					}
+				}
+			}
 			if ($e['op'] === 'addIndex' && isset($e['index'])) {
 				foreach ($schema['indexes'][$e['table']] ?? [] as $existing => $idx) {
 					$dropped = array_filter($earlierDrops, static fn (array $d): bool => $d['op'] === 'dropIndex' && $d['table'] === $e['table'] && $d['index'] === $e['index']);
