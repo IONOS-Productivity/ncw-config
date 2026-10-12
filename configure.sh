@@ -443,19 +443,6 @@ configure_files_antivirus_app() {
 	log_info "files_antivirus app configured successfully with host: ${CLAMAV_HOST}, port: ${CLAMAV_PORT}"
 }
 
-# Configure whiteboard app
-# Usage: configure_whiteboard_app
-configure_whiteboard_app() {
-	log_info "Configuring whiteboard app..."
-	# Fallback: Default value for port is "-" if port is not set
-	_collab_backend_port="${APP_WHITEBOARD_COLLABBACKEND_PORT:-3002}"
-	if [ "${_collab_backend_port}" != "-" ]; then
-		APP_WHITEBOARD_COLLABBACKEND_URL="${APP_WHITEBOARD_COLLABBACKEND_URL}:${_collab_backend_port}"
-	fi
-	execute_occ_secret_command config:app:set whiteboard collabBackendUrl --value="${APP_WHITEBOARD_COLLABBACKEND_URL}"
-	execute_occ_secret_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
-}
-
 # Select and configure the document editor app based on DOCUMENT_APP env var.
 # DOCUMENT_APP: "eurooffice" (default)
 # Usage: configure_document_app
@@ -930,7 +917,6 @@ configure_apps() {
 	configure_viewer_app
 	configure_document_app
 	configure_notify_push_app
-	configure_whiteboard_app
 	configure_spreed_app
 
 	# Enable additional apps

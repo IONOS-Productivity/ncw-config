@@ -50,8 +50,7 @@ FULL_BUILD_APPS = \
 	text \
 	user_oidc \
 	user_saml \
-	viewer \
-	whiteboard
+	viewer
 
 # App directories that need only composer
 COMPOSER_ONLY_APPS = \
