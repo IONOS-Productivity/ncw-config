@@ -491,6 +491,7 @@ configure_eurooffice_app() {
 
 	enable_app eurooffice "Euro-Office"
 
+	execute_occ_command config:app:set eurooffice emailNotifications --value="false" --type=string
 	execute_occ_command config:app:set eurooffice DocumentServerUrl --value="${APP_EUROOFFICE_DOCUMENT_SERVER_URL}"
 	execute_occ_secret_command config:app:set eurooffice jwt_secret --sensitive --value="${APP_EUROOFFICE_JWT_SECRET}"
 
