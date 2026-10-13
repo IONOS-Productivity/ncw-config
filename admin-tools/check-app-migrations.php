@@ -1504,19 +1504,19 @@ function printFix(array $fixes, string $recheck, bool $fromFiles): void {
 	echo "# A replay runs the whole migration again, not only the part that is missing.\n";
 	echo "# migrations:execute is silent on success; the OK line and exit code 0 mean it worked, a failure prints an error.\n";
 	if ($run !== []) {
-		echo "# Before: take a DB backup/snapshot and enable maintenance mode:  occ maintenance:mode --on\n";
+		echo "# Before: take a DB backup/snapshot and enable maintenance mode:  ./occ maintenance:mode --on\n";
 		echo "# migrations:execute is only available with debug on; NC_debug=true enables it for this one command only\n";
 		echo "# In this order, one chain: nothing runs after a failed migration:\n";
 		$lines = [];
 		foreach ($run as $app => $f) {
 			foreach ($f['run'] as $v) {
 				// migrations:execute prints nothing on success, so make the exit code visible
-				$lines[] = 'NC_debug=true occ migrations:execute ' . shellWord((string)$app) . ' ' . shellWord($v)
+				$lines[] = 'NC_debug=true ./occ migrations:execute ' . shellWord((string)$app) . ' ' . shellWord($v)
 					. ' && echo ' . escapeshellarg("OK: $app $v");
 			}
 		}
 		echo implode(" \\\n\t&& ", $lines) . "\n";
-		echo "# After: occ maintenance:mode --off; then check the result (expect no findings left):\n";
+		echo "# After: ./occ maintenance:mode --off; then check the result (expect no findings left):\n";
 		if ($fromFiles) {
 			echo "# (this run read dump files: take new ones with --dump-applied and --dump-schema first)\n";
 		}
