@@ -12,8 +12,10 @@
 # 6. Creates PR to merge into the target branch and sets the same milestone on it
 #
 # Milestone routing:
-#   ncw-v33-2   -> ionos-dev-v33
-#   (otherwise) -> DEFAULT_BASE_BRANCH (ionos-dev)
+#   ncw-v33-2        -> ionos-dev-v33
+#   no milestone     -> (source PR found) latest ionos-dev-v<N> branch (highest N) in ncw-server
+#   other milestone, or no source PR / failed lookup -> DEFAULT_BASE_BRANCH (ionos-dev)
+#   (DEFAULT_BASE_BRANCH is also the fallback if no ionos-dev-v<N> branch exists)
 #
 # To adapt for other submodules:
 # 1. Copy this workflow file to the submodule repository's .github/workflows/
@@ -111,7 +113,7 @@ jobs:
       SUBMODULE_NAME: IONOS                              # Submodule directory name in ncw-server
       SUBMODULE_REPO: IONOS-Productivity/ncw-config      # Source repository (must match 'if' condition above)
       TARGET_REPO: IONOS-Productivity/ncw-server         # Target repository containing the submodule
-      DEFAULT_BASE_BRANCH: ionos-dev                     # Target branch for PRs without a routed milestone
+      DEFAULT_BASE_BRANCH: ionos-dev                     # Fallback target branch (other milestones / no versioned branch)
       COMMIT_PREFIX: "IONOS(config)"                     # Prefix for commit messages and PR titles
 
     steps:
@@ -151,14 +153,36 @@ jobs:
           SOURCE_MILESTONE=$(jq -r '(.milestone.title // "") | gsub("[\\r\\n]"; " ")' <<< "$SOURCE_PR_JSON" 2>/dev/null || true)
 
           # Milestone routing: map a milestone to its dedicated target branch
-          case "$SOURCE_MILESTONE" in
-            ncw-v33-2) BASE_BRANCH="ionos-dev-v33" ;;
-            *)         BASE_BRANCH="${{ env.DEFAULT_BASE_BRANCH }}" ;;
-          esac
+          if [ -z "$SOURCE_PR_URL" ]; then
+            # Lookup failed or no source PR found: use the default branch
+            BASE_BRANCH="${{ env.DEFAULT_BASE_BRANCH }}"
+          else
+            case "$SOURCE_MILESTONE" in
+              ncw-v33-2)
+                BASE_BRANCH="ionos-dev-v33"
+                ;;
+              "")
+                # Source PR found but no milestone: use the latest ionos-dev-v<N> branch (highest N)
+                BASE_BRANCH=$(gh api "repos/${{ env.TARGET_REPO }}/branches" --paginate --jq '.[].name' \
+                  | grep -E '^ionos-dev-v[0-9]+$' | sort -V | tail -n 1 || true)
+                BASE_BRANCH="${BASE_BRANCH:-${{ env.DEFAULT_BASE_BRANCH }}}"
+                ;;
+              *)
+                BASE_BRANCH="${{ env.DEFAULT_BASE_BRANCH }}"
+                ;;
+            esac
+          fi
+
+          # The update branch name includes the target branch, so a rerun that resolves to a
+          # different base (e.g. a newer ionos-dev-v<N>) gets its own branch instead of a
+          # non-fast-forward push to an existing one.
+          SUBMODULE_NAME_CLEAN=$(echo "${{ env.SUBMODULE_NAME }}" | tr '/' '-')
+          BRANCH_NAME="update-${SUBMODULE_NAME_CLEAN}-submodule-${{ needs.create-prerelease.outputs.short_sha }}-${BASE_BRANCH}"
 
           echo "::notice::Source milestone: ${SOURCE_MILESTONE:-none}, target branch: $BASE_BRANCH"
           {
             echo "base_branch=$BASE_BRANCH"
+            echo "branch_name=$BRANCH_NAME"
             echo "source_pr_url=$SOURCE_PR_URL"
             echo "source_milestone=$SOURCE_MILESTONE"
           } >> "$GITHUB_OUTPUT"
@@ -185,9 +209,7 @@ jobs:
           git config --global url."https://".insteadOf "ssh://"
 
           # Create a new branch for the update from the resolved target branch
-          # Replace slashes with dashes for cleaner branch names
-          SUBMODULE_NAME_CLEAN=$(echo "${{ env.SUBMODULE_NAME }}" | tr '/' '-')
-          BRANCH_NAME="update-${SUBMODULE_NAME_CLEAN}-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
+          BRANCH_NAME="${{ steps.source-pr.outputs.branch_name }}"
           git fetch origin
           git checkout -B "$BRANCH_NAME" "origin/${{ steps.source-pr.outputs.base_branch }}"
 
@@ -223,9 +245,7 @@ jobs:
           SOURCE_PR_URL: ${{ steps.source-pr.outputs.source_pr_url }}
           SOURCE_MILESTONE: ${{ steps.source-pr.outputs.source_milestone }}
         run: |
-          # Replace slashes with dashes for cleaner branch names
-          SUBMODULE_NAME_CLEAN=$(echo "${{ env.SUBMODULE_NAME }}" | tr '/' '-')
-          BRANCH_NAME="update-${SUBMODULE_NAME_CLEAN}-submodule-${{ needs.create-prerelease.outputs.short_sha }}"
+          BRANCH_NAME="${{ steps.source-pr.outputs.branch_name }}"
 
           # Get the commit message from submodule
           cd "${{ env.SUBMODULE_NAME }}"
