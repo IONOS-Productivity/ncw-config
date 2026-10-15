@@ -460,45 +460,11 @@ generate_external_apps_matrix: .precheck ## Generate external-apps-matrix.yml fi
 	done'
 
 generate_external_apps_matrix_json: .precheck ## Generate external-apps-matrix.json file with app configuration details
-	@echo "[i] Generating external apps matrix JSON file..." >&2
-	@bash -c ' \
-	# Process all configured apps \
-	all_configured_apps="$(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(COMPOSER_NO_SCRIPTS_APPS) $(COMPOSER_NO_SCRIPTS_WITH_NPM_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS)"; \
-	echo "["; \
-	first=true; \
-	found_any=false; \
-	for app in $$all_configured_apps; do \
-		if [ -d "apps-external/$$app" ]; then \
-			found_any=true; \
-			if [ "$$first" = true ]; then \
-				first=false; \
-			else \
-				echo "  },"; \
-			fi; \
-			echo "  {"; \
-			echo "    \"name\": \"$$app\","; \
-			echo "    \"path\": \"apps-external/$$app\","; \
-			\
-			# Check for npm (package.json) \
-			if [ -f "apps-external/$$app/package.json" ]; then \
-				echo "    \"has_npm\": true,"; \
-			else \
-				echo "    \"has_npm\": false,"; \
-			fi; \
-			\
-			# Check for composer (composer.json) \
-			if [ -f "apps-external/$$app/composer.json" ]; then \
-				echo "    \"has_composer\": true,"; \
-			else \
-				echo "    \"has_composer\": false,"; \
-			fi; \
-			\
-			# Determine makefile target \
-			makefile_target="build_$${app}_app"; \
-			echo "    \"makefile_target\": \"$$makefile_target\""; \
-		fi; \
-	done; \
-	if [ "$$found_any" = true ]; then \
-		echo "  }"; \
-	fi; \
-	echo "]"' | jq 'sort_by(.name)'
+	@IONOS/scripts/generate_external_apps_matrix_json.sh \
+		"$(FULL_BUILD_APPS)" \
+		"$(COMPOSER_ONLY_APPS)" \
+		"$(COMPOSER_NO_SCRIPTS_APPS)" \
+		"$(COMPOSER_NO_SCRIPTS_WITH_NPM_APPS)" \
+		"$(NOTHING_TO_BUILD_APPS)" \
+		"$(SPECIAL_BUILD_APPS)" \
+	| jq 'sort_by(.name)'
