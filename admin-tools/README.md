@@ -93,6 +93,43 @@ Update email addresses in Nextcloud mail app configuration when a customer's ema
 
 **Note:** Users may need to refresh their mail app to see the changes.
 
+### check-app-migrations.php
+
+Read-only check of an app's migrations against the database. Reports migrations that were **never applied** (no row in `oc_migrations`) and migrations that are **applied but not in effect** (row exists, but the columns, tables or indexes they create are missing, or what they drop is still there). Example: Talk failing with `Unknown column 'r.last_pinned_id'` although `23000Date20251030090219` is recorded as applied.
+
+The expected migrations are the `Version*.php` files in the app's `lib/Migration`, i.e. what is deployed there. No git is used. Schema effects (`addColumn`, `createTable`, `addIndex`, `setPrimaryKey`, `dropColumn`, `dropTable`, `dropIndex`, `renameColumn`) are extracted statically from `changeSchema()`. `hasColumn`-style guards are understood. Effects that a later applied migration overrides are skipped. A `changeSchema()` whose every `return` is `return null;` is reported as not verifiable with a note: Nextcloud applies the schema only when a schema wrapper is returned, so such a migration never makes its changes (a defect in the app) and re-running it cannot fix them. `if` guards are only trusted in the exact forms `if (!hasX('n')) { add n }` and `if (hasX('n')) { drop n }` (and `hasTable('t')` for effects on that table); other conditions, `if (false)`, conditional, computed or unknown `return` values (including `return null` inside loops and `try` blocks), helper calls that receive the schema (any table may change), unsupported table methods and computed names make the affected migrations, and earlier effects on the tables concerned, not verifiable. Indexes are compared with their uniqueness. Anything it cannot parse (data changes in `preSchemaChange`/`postSchemaChange`, loops, helper calls, non-guard conditions, computed names) is listed under "Not verifiable" and never guessed.
+
+The database connection is taken from the Nextcloud config (`config/config.php` plus `config/*.config.php`); nothing is passed on the command line.
+
+```bash
+# On the instance: the app directory is found automatically
+./check-app-migrations.php --app spreed --db
+
+# sqlite dev instance whose datadirectory is a container path
+./check-app-migrations.php --db --sqlite-file data/owncloud.db
+
+# Every app that has rows in oc_migrations (core included; apps not on disk are skipped)
+./check-app-migrations.php --all --db
+
+# Only what an upgrade from Nextcloud 31 (31 -> 32 -> 33) should have run
+./check-app-migrations.php --all --db --since-nc 31
+
+# Check elsewhere from dumps taken in the pod
+./check-app-migrations.php --db --dump-applied > applied.txt
+./check-app-migrations.php --db --dump-schema  > schema.txt
+./check-app-migrations.php --applied applied.txt --schema schema.txt
+```
+
+**Options:** `--app` (default `spreed`), `--all` (all apps; an overview table and details only for apps with findings, `--verbose` shows the rest), `--app-path` (default: looked up via `apps_paths` in the Nextcloud config, else `apps/`, `apps-external/`, `custom_apps/`), `--config DIR` (default: `NEXTCLOUD_CONFIG_DIR`, else the `config/` of the Nextcloud root the script lives in, not the current directory), `--sqlite-file FILE`, `--since-nc N` (only migrations written after Nextcloud N was branched, e.g. `31`; derived from the date stamp in the migration version, so approximate for apps that are branched on their own schedule), `--strict` (also fail on "not verifiable"), `--verbose` (list verified and superseded effects).
+
+When something is found, the report ends with a "Suggested fix" block. A run executes the whole migration against the current schema, not only the part that is missing, so a command is only suggested when that is clearly safe, for never applied migrations as well as applied ones: the migration has no code the check cannot interpret, including calls in `changeSchema()` that never touch the schema, such as DB statements (data changes in `preSchemaChange()`/`postSchemaChange()` are fine for a never applied migration, which just runs for the first time), its guards (`if (!hasColumn(..))` and so on) would let the missing part run now, no unguarded operation is already in place or collides with an existing index name or primary key (it would fail), the tables and columns it needs exist or are created earlier in the same migration, and no later migration undid or may have changed again what it does. Everything else is listed under "Review by hand" with the reason. App ids read from the migrations table by `--all` must be plain ids (lowercase letters, digits, underscore); others are ignored and counted, and every word in the generated commands is shell-quoted. The commands form one `&&` chain, so nothing runs after a failed migration. `migrations:execute` only exists with debug on, so `NC_debug=true` enables it for that one command and not for the instance. `migrations:execute` prints nothing on success, so each suggested command ends with `&& echo "OK: ..."`, and the block ends with the same check command with the arguments you used. The script only prints all this and never runs anything.
+
+The schema dump starts with a `prefix=` line, so a dump from an instance with another table prefix works as is; `--prefix` is for hand-made files.
+
+**Exit codes:** 0 nothing wrong, 1 never applied or not in effect found, 2 usage/input error. Output contains only versions and table, column and index names. Sessions are read-only (`SET SESSION TRANSACTION READ ONLY` / `PRAGMA query_only`), and connection errors are reported by code only so no credentials leak.
+
+**Requires:** PHP with `pdo_mysql` or `pdo_sqlite` (for `--db`). No git needed.
+
 
 ## Standard Interface
 
