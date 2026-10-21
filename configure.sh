@@ -381,12 +381,9 @@ configure_theming() {
 
 	execute_occ_command config:app:set theming imprintUrlDefault --value "${IMPRINT_URL}"
 	execute_occ_command config:app:set theming privacyUrlDefault --value "${PRIVACY_URL}"
-	execute_occ_command theming:config primary_color "#003D8F"
-	execute_occ_command config:app:set --value "#ffffff" -- theming background_color
 	set_app_config_typed theming disable-user-theming true boolean
 	execute_occ_command theming:config disable_admin_theming yes
 	#execute_occ_command theming:config favicon "${FAVICON_DIR}/favicon.ico"
-	execute_occ_command config:app:set theming backgroundMime --value backgroundColor
 	execute_occ_command theming:config url ""
 
 	# Set homepage URL if configured
