@@ -174,10 +174,24 @@ ensure_app_states() {
 	log_success "Done."
 }
 
+# Remember the installed version before upgrade.sh changes it, the NSW-1082 replay
+# (post-upgrade/nsw1082-replay.sh) needs it. It lives in appconfig because the replay
+# runs in another pod, and the wrapper decides what to keep or replace. Not called
+# on a fresh install, so a missing value tells it apart.
+record_pre_upgrade_version() {
+	_replay_wrapper="${BDIR}/post-upgrade/nsw1082-replay.sh"
+	if [ ! -f "${_replay_wrapper}" ]; then
+		return 0
+	fi
+	/bin/sh "${_replay_wrapper}" record || log_warn "Could not record the version before the upgrade."
+}
+
 main() {
 	if ! jq --version >/dev/null 2>&1; then
 		log_fatal "Error: jq is required"
 	fi
+
+	record_pre_upgrade_version
 
 	log_info "Ensuring app states..."
 	disable_removed_apps
