@@ -3,9 +3,9 @@
 # From: https://github.com/IONOS-Productivity/ncw-server/commit/ca0cfceb70cea68baa307ac9f43201d753de9ba3
 # To:   https://github.com/IONOS-Productivity/ncw-server/commit/35fa7bcbf61048148cc7001b01a41c2887cfd7cf
 # Diff: https://github.com/IONOS-Productivity/ncw-server/compare/ca0cfceb70cea68baa307ac9f43201d753de9ba3...35fa7bcbf61048148cc7001b01a41c2887cfd7cf
-# Generated 2026-10-23T12:07:58+00:00 by migration-notes.sh from the ref diff, not from a database.
-# Generator: IONOS-Productivity/nc-docs-and-tools@41002d9618b
-#            https://github.com/IONOS-Productivity/nc-docs-and-tools/commit/41002d9618b133f898fb749835a5076bc4596ed9
+# Generated 2026-10-27T06:44:55+00:00 by migration-notes.sh from the ref diff, not from a database.
+# Generator: IONOS-Productivity/nc-docs-and-tools@e385bd90730
+#            https://github.com/IONOS-Productivity/nc-docs-and-tools/commit/e385bd90730dfce803b8e489cec2c6c12217ca99
 #
 # Re-run with the same arguments (from the directory it was started in):
 #   tools/release-notes.sh upgrade \
@@ -23,9 +23,11 @@
 # at the end, the exit code is 1 then. There is no rollback.
 #
 # migrations:execute only works for enabled apps, so an app the customer has
-# disabled is enabled for its migrations and disabled again right after. Apps that
-# are already enabled are never touched. Whatever happens (failures, SIGTERM), the
-# app states and the maintenance mode are put back as they were before the run.
+# disabled is enabled for its migrations and disabled again right after, unless it
+# was never installed on the instance (enabling would install it): that app is
+# skipped. Apps that are already enabled are never touched. Whatever happens
+# (failures, SIGTERM), the app states and the maintenance mode are put back as they
+# were before the run.
 # Only SIGKILL or a lost container can skip that; the log then says which apps
 # were enabled by the script ("enabling disabled app").
 #
@@ -127,6 +129,13 @@ app_begin() {
             log INFO "app already enabled, left as is" app="$app"
             return 0 ;;
         disabled)
+            # app:list adds " (installed x.y.z)" once the app was enabled for the
+            # first time. Without it the app was never installed here, and enabling
+            # it would install it (tables and all migrations) instead of upgrading.
+            if ! jq -e --arg a "$app" '.disabled[$a] | contains("(installed ")' >/dev/null <<<"$apps_json"; then
+                log WARN "app was never installed on this instance, its migrations are skipped" app="$app"
+                return 1
+            fi
             log INFO "enabling disabled app" app="$app"
             # Listed before the call, and kept listed when it fails: app:enable
             # writes enabled=yes before it dispatches events and migrates config,
