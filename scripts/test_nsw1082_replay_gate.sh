@@ -66,6 +66,12 @@ case "${STUB_MODE}" in
 		trap 'sleep 1; touch "${STUB_CLEANUP}"; exit 143' TERM
 		touch "${STUB_STARTED}"
 		while :; do sleep 0.2; done ;;
+	skipapps)
+		printf '%s\n' '{"level":"WARN","msg":"app was never installed on this instance, its migrations are skipped","app":"forms"}'
+		printf '%s\n' '{"level":"WARN","msg":"app was never installed on this instance, its migrations are skipped","app":"collectives"}'
+		printf '%s\n' '{"level":"WARN","msg":"app is not on this instance, its migrations are skipped","app":"eurooffice"}'
+		printf '%s\n' '{"level":"WARN","msg":"migrations left out on purpose","left_out":"tables:x"}'
+		finished 50 0; exit 0 ;;
 	early) finished 0 0; exit 1 ;;
 	killed) exit 143 ;;
 esac
@@ -141,7 +147,7 @@ check "lower bound"              31.0.8.1     33.0.9.1.1615    -       ok      y
 check "build number is ignored"  31.0.8.1.99  33.0.9.1.1       -       ok      yes  yes    no
 check "inside range"             32.0.14.1    33.0.9.1.1615    -       ok      yes  yes    no
 assert_marker "clean run is recorded as done" \
-	'.state == "done" and .ok == 74 and .failed == 0 and .failed_migrations == [] and .exit == 0 and .run_id == "stub-run"
+	'.state == "done" and .ok == 74 and .failed == 0 and .failed_migrations == [] and .skipped_apps == [] and .exit == 0 and .run_id == "stub-run"
 	and .nextcloud_version_before_upgrade == "32.0.14.1" and .nextcloud_version_deployed == "33.0.9.1.1615" and (.at | test("^20[0-9-]+T[0-9:]+Z$"))'
 check "upper bound"              33.0.9.1     33.0.9.1.1615    -       ok      yes  yes    no
 check "newer code than target"   33.0.9.1     33.0.10.0.1700   -       ok      yes  yes    no
@@ -170,6 +176,9 @@ assert_marker "enable failure is never benign, even with 'already exists'" \
 check "only benign failures"     31.0.8.1     33.0.9.1.1615    -       benign  yes  yes    no
 assert_marker "benign failures only count as done" \
 	'.state == "done" and .failed == 1 and .failed_benign == 1 and .failed_migrations[0].id == "spreed:22001Date20250927174738"'
+check "apps that are not installed" 31.0.8.1    33.0.9.1.1615    -       skipapps yes yes   no
+assert_marker "skipped apps are named, other warnings are not" \
+	'.state == "done" and .ok == 50 and .skipped_apps == ["collectives", "eurooffice", "forms"]'
 check "stopped before running"   31.0.8.1     33.0.9.1.1615    -       early   yes  no     yes
 check "interrupted"              31.0.8.1     33.0.9.1.1615    -       killed  yes  no     yes
 check "unreadable version"       garbage      33.0.9.1.1615    -       ok      no   no     no

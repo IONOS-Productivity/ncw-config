@@ -166,6 +166,14 @@ failure_details() {
 	' 2>/dev/null || true
 }
 
+# The apps whose migrations were skipped because the app is not installed on the
+# tenant, from the replay's own WARN lines, as a JSON array of app names.
+skipped_apps() {
+	grep '"level":"WARN"' "${1}" | jq -cs '
+		[.[] | select(.msg | test("^app (was never installed on|is not on) this instance")) | .app] | unique
+	' 2>/dev/null || true
+}
+
 run_replay() {
 	_pre_version="$( occ config:app:get "${MARKER_APP}" "${PRE_VERSION_KEY}" 2>/dev/null || true )"
 	if [ -z "${_pre_version}" ]; then
@@ -226,10 +234,14 @@ run_replay() {
 	# "finished" line tells how many migrations were really attempted.
 	_finished="$( grep '"msg":"finished' "${_log}" | tail -n 1 )"
 	_details="$( failure_details "${_log}" )"
+	_skipped_apps="$( skipped_apps "${_log}" )"
 	rm -f "${_tmp}/out" "${_log}"
 	rmdir "${_tmp}" 2>/dev/null || true
 	if [ -z "${_details}" ]; then
 		_details='{}'
+	fi
+	if [ -z "${_skipped_apps}" ]; then
+		_skipped_apps='[]'
 	fi
 	_attempted="$( printf '%s' "${_finished}" \
 		| jq -r '(.migrations_ok | tonumber) + (.migrations_failed | tonumber)' 2>/dev/null || true )"
@@ -248,7 +260,7 @@ run_replay() {
 	_now="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
 	_result="$( printf '%s' "${_finished}" | jq -c \
 		--arg at "${_now}" --arg before "${_pre_version}" --arg deployed "${_code_version}" \
-		--argjson exit "${_rc}" --argjson details "${_details}" --arg benign "${BENIGN_ERROR_RE}" '
+		--argjson exit "${_rc}" --argjson details "${_details}" --argjson skipped_apps "${_skipped_apps}" --arg benign "${BENIGN_ERROR_RE}" '
 		((.failed // "") | split(" ") | map(select(. != ""))
 			| map({id: ., error: ($details[.] // "")}
 				# an app that could not be enabled had all its other migrations skipped, whatever the text says
@@ -265,6 +277,7 @@ run_replay() {
 			failed: ($list | length),
 			failed_benign: (($list | length) - $other),
 			skipped: (.migrations_skipped | tonumber),
+			skipped_apps: $skipped_apps,
 			failed_migrations: $list,
 			exit: $exit
 		}' 2>/dev/null || true )"
