@@ -3,7 +3,7 @@
 # From: https://github.com/IONOS-Productivity/ncw-server/commit/ca0cfceb70cea68baa307ac9f43201d753de9ba3
 # To:   https://github.com/IONOS-Productivity/ncw-server/commit/35fa7bcbf61048148cc7001b01a41c2887cfd7cf
 # Diff: https://github.com/IONOS-Productivity/ncw-server/compare/ca0cfceb70cea68baa307ac9f43201d753de9ba3...35fa7bcbf61048148cc7001b01a41c2887cfd7cf
-# Generated 2026-10-27T06:44:55+00:00 by migration-notes.sh from the ref diff, not from a database.
+# Generated 2026-10-28T15:00:06+00:00 by migration-notes.sh from the ref diff, not from a database.
 # Generator: IONOS-Productivity/nc-docs-and-tools@e385bd90730
 #            https://github.com/IONOS-Productivity/nc-docs-and-tools/commit/e385bd90730dfce803b8e489cec2c6c12217ca99
 #
@@ -14,7 +14,9 @@
 #     --output . \
 #     --skip-migration 'tables:2200Date20260819000000:regenerates the UUID of every table' \
 #     --skip-migration 'tables:2020Date20260513185340:regenerates the UUID of every column and view' \
-#     --skip-migration 'files_sharing:33000Date20251030081948:does nothing, changeSchema returns null so auto increment is never dropped'
+#     --skip-migration 'files_sharing:33000Date20251030081948:does nothing, changeSchema returns null so auto increment is never dropped' \
+#     --skip-migration 'spreed:23000Date20251215204457:drops has_scheduled_messages, which 23000Date20251218142903 adds again with 0, so a replay resets every attendee count and a stop in between leaves the column missing' \
+#     --skip-migration 'spreed:22001Date20250927174738:changeSchema returns null so the index is never created, a replay only fails with "already defined"'
 #
 # Run by an admin or a job after a DB backup. Needs jq and occ. A replay runs the
 # whole migration again, also for instances that already applied it. That normally
@@ -41,13 +43,15 @@
 #
 # Left out on purpose (not safe to replay, or replaying changes nothing), review by hand:
 #   files_sharing 33000Date20251030081948: does nothing, changeSchema returns null so auto increment is never dropped
+#   spreed 22001Date20250927174738: changeSchema returns null so the index is never created, a replay only fails with "already defined"
+#   spreed 23000Date20251215204457: drops has_scheduled_messages, which 23000Date20251218142903 adds again with 0, so a replay resets every attendee count and a stop in between leaves the column missing
 #   tables 2020Date20260513185340: regenerates the UUID of every column and view
 #   tables 2200Date20260819000000: regenerates the UUID of every table
 
 OCC="${OCC:-./occ}"
 STEP=origin/rc/ncw-v31-7\ \(ca0cfce\,\ v31.0.8.1\,\ NC\ 31\)\ -\>\ origin/rc/ncw-v33-2\ \(35fa7bc\,\ v33.0.9.1\,\ NC\ 33\)
-TOTAL=71
-LEFT_OUT=files_sharing:33000Date20251030081948\ tables:2020Date20260513185340\ tables:2200Date20260819000000
+TOTAL=69
+LEFT_OUT=files_sharing:33000Date20251030081948\ spreed:22001Date20250927174738\ spreed:23000Date20251215204457\ tables:2020Date20260513185340\ tables:2200Date20260819000000
 LOG_FORMAT="${LOG_FORMAT:-json}"
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 ok=0
@@ -369,12 +373,9 @@ if app_begin spreed; then
     # DATA-MUTATING: $result = $query->executeQuery();
     migrate spreed 22000Date20250803160923
     migrate spreed 22000Date20250813122342
-    migrate spreed 22001Date20250927174738
     migrate spreed 23000Date20251030090219
     migrate spreed 23000Date20251105125333
     migrate spreed 23000Date20251114105144
-    # DESTRUCTIVE: $table->dropColumn('has_scheduled_messages');
-    migrate spreed 23000Date20251215204457
     migrate spreed 23000Date20251218142903
     # DESTRUCTIVE: $table->dropColumn('created_at');
     migrate spreed 23000Date20260107162758

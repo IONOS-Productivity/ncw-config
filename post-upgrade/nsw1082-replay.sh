@@ -26,7 +26,8 @@
 # if any, only says that the thing already exists, else done_with_failures), at,
 # run_id, step, the Nextcloud versions before the upgrade and deployed, the
 # ok/failed/failed_benign/skipped counts, and failed_migrations with the first error
-# text of each and whether it is benign (an app that could not be enabled never is).
+# text of each and whether it is benign (never: an app that could not be enabled or
+# disabled again, maintenance mode that stayed on, a duplicate entry).
 #
 # Environment (for tests): NEXTCLOUD_DIR, OCC_CMD, REPLAY_SCRIPT
 
@@ -42,8 +43,10 @@ readonly PRE_VERSION_KEY="post_upgrade.nextcloud_version_before_upgrade"
 
 # A failed migration whose error says this only found the schema already in place,
 # which is expected when a migration without a guard is replayed. "Duplicate entry"
-# is a data error and does not match.
+# is a data error: it is checked first, because MySQL puts the conflicting value into
+# the text and that value can contain "already exists".
 readonly BENIGN_ERROR_RE='already (defined|exists)|duplicate (key|column) name'
+readonly DATA_ERROR_RE='duplicate entry'
 
 EXIT_CODE=0
 BDIR="$( dirname "${0}" )"
@@ -154,10 +157,17 @@ record_pre_upgrade_version() {
 
 # The first error text of every failed migration, from the replay's own log lines,
 # as {"<app>:<version>": "<text>"}. An app that could not be enabled is "<app>:enable".
+# Two restore steps that failed at the end are listed the same way. They are not in the
+# replay's "failed" list and need a manual fix: maintenance mode that stayed on is
+# "maintenance:off", an app that stayed enabled is "<app>:disable".
 failure_details() {
 	grep '"level":"ERROR"' "${1}" | jq -cs '
-		reduce (.[] | select(.msg == "migration failed" or (.msg | startswith("app:enable failed")))) as $l ({};
-			. + {(if $l.msg == "migration failed" then $l.app + ":" + $l.version else $l.app + ":enable" end):
+		reduce (.[] | select(.msg == "migration failed" or (.msg | startswith("app:enable failed"))
+				or (.msg | startswith("could not switch maintenance mode off")) or (.msg | startswith("could not disable the app")))) as $l ({};
+			. + {(if $l.msg == "migration failed" then $l.app + ":" + $l.version
+					elif ($l.msg | startswith("app:enable failed")) then $l.app + ":enable"
+					elif ($l.msg | startswith("could not disable the app")) then $l.app + ":disable"
+					else "maintenance:off" end):
 				((($l.error // "") + " " + ($l.output // "")) | gsub("\\s+"; " ") | sub("^ "; "") | sub(" $"; "")
 					# occ prints this while maintenance mode is on, and the usage line after an error: not the message
 					| sub("^Nextcloud is in maintenance mode, no apps are loaded\\. Commands provided by apps are unavailable\\. "; "")
@@ -260,11 +270,16 @@ run_replay() {
 	_now="$( date -u +%Y-%m-%dT%H:%M:%SZ )"
 	_result="$( printf '%s' "${_finished}" | jq -c \
 		--arg at "${_now}" --arg before "${_pre_version}" --arg deployed "${_code_version}" \
-		--argjson exit "${_rc}" --argjson details "${_details}" --argjson skipped_apps "${_skipped_apps}" --arg benign "${BENIGN_ERROR_RE}" '
-		((.failed // "") | split(" ") | map(select(. != ""))
+		--argjson exit "${_rc}" --argjson details "${_details}" --argjson skipped_apps "${_skipped_apps}" --arg benign "${BENIGN_ERROR_RE}" --arg data "${DATA_ERROR_RE}" '
+		(((.failed // "") | split(" ") | map(select(. != "")))
+			# restore steps that failed are not in "failed", they come from the details
+			+ ($details | keys | map(select(endswith(":disable") or . == "maintenance:off")))
+			| unique
 			| map({id: ., error: ($details[.] // "")}
-				# an app that could not be enabled had all its other migrations skipped, whatever the text says
-				| .benign = ((.id | endswith(":enable") | not) and (.error | test($benign; "i"))))) as $list
+				# whatever the text says: an app that could not be enabled had all its other migrations
+				# skipped, a restore step that failed left the tenant changed, a duplicate entry is a data error
+				| .benign = ((.id | (endswith(":enable") or endswith(":disable") or . == "maintenance:off") | not)
+					and (.error | test($data; "i") | not) and (.error | test($benign; "i"))))) as $list
 		| ($list | map(select(.benign | not)) | length) as $other
 		| {
 			state: (if $other > 0 then "done_with_failures" else "done" end),

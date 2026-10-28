@@ -72,6 +72,13 @@ case "${STUB_MODE}" in
 		printf '%s\n' '{"level":"WARN","msg":"app is not on this instance, its migrations are skipped","app":"eurooffice"}'
 		printf '%s\n' '{"level":"WARN","msg":"migrations left out on purpose","left_out":"tables:x"}'
 		finished 50 0; exit 0 ;;
+	dupvalue)
+		printf '%s\n' "{\"level\":\"ERROR\",\"msg\":\"migration failed\",\"app\":\"forms\",\"version\":\"050300Date20260303000000\",\"error\":\"SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'already exists' for key 'y'\"}"
+		finished 73 1 ',"failed":"forms:050300Date20260303000000"'; exit 1 ;;
+	restorefail)
+		printf '%s\n' '{"level":"ERROR","msg":"could not disable the app, disable it by hand","app":"calendar","output":"","error":"Table oc_x already exists"}'
+		printf '%s\n' '{"level":"ERROR","msg":"could not switch maintenance mode off, do it by hand","output":"","error":"Connection refused"}'
+		finished 74 0; exit 0 ;;
 	early) finished 0 0; exit 1 ;;
 	killed) exit 143 ;;
 esac
@@ -176,6 +183,15 @@ assert_marker "enable failure is never benign, even with 'already exists'" \
 check "only benign failures"     31.0.8.1     33.0.9.1.1615    -       benign  yes  yes    no
 assert_marker "benign failures only count as done" \
 	'.state == "done" and .failed == 1 and .failed_benign == 1 and .failed_migrations[0].id == "spreed:22001Date20250927174738"'
+check "duplicate entry with a value" 31.0.8.1    33.0.9.1.1615    -       dupvalue yes yes   no
+assert_marker "a duplicate entry is never benign, even when its value says 'already exists'" \
+	'.state == "done_with_failures" and .failed == 1 and .failed_benign == 0
+	and .failed_migrations[0].id == "forms:050300Date20260303000000" and .failed_migrations[0].benign == false'
+check "restore steps that failed" 31.0.8.1    33.0.9.1.1615    -       restorefail yes yes no
+assert_marker "a failed restore is recorded as non-benign although the replay counted no failure" \
+	'.state == "done_with_failures" and .ok == 74 and .failed == 2 and .failed_benign == 0
+	and (.failed_migrations | map(.id)) == ["calendar:disable", "maintenance:off"]
+	and (.failed_migrations | all(.benign == false)) and .failed_migrations[1].error == "Connection refused"'
 check "apps that are not installed" 31.0.8.1    33.0.9.1.1615    -       skipapps yes yes   no
 assert_marker "skipped apps are named, other warnings are not" \
 	'.state == "done" and .ok == 50 and .skipped_apps == ["collectives", "eurooffice", "forms"]'
