@@ -12,7 +12,7 @@
 # 6. Creates PR to merge into the target branch and sets the same milestone on it
 #
 # Milestone routing:
-#   ncw-v33-2        -> ionos-dev-v33
+#   ncw-v<NN>-<N>    -> ionos-dev-v<NN> (e.g. ncw-v33-3 -> ionos-dev-v33), if that branch exists
 #   no milestone     -> (source PR found) latest ionos-dev-v<N> branch (highest N) in ncw-server
 #   other milestone, or no source PR / failed lookup -> DEFAULT_BASE_BRANCH (ionos-dev)
 #   (DEFAULT_BASE_BRANCH is also the fallback if no ionos-dev-v<N> branch exists)
@@ -27,6 +27,7 @@
 #    - DEFAULT_BASE_BRANCH: Default target branch (typically "ionos-dev")
 #    - the milestone routing in the "Resolve source PR and target branch" step
 #    - COMMIT_PREFIX: Commit message prefix (e.g., "IONOS(config)")
+#    - PR_LABEL: Label added to the update PR (must exist in TARGET_REPO)
 # 4. Ensure NCW_SERVER_PAT secret is configured in the submodule repository
 #
 name: Create pre-release and update ncw-server submodule
@@ -115,6 +116,7 @@ jobs:
       TARGET_REPO: IONOS-Productivity/ncw-server         # Target repository containing the submodule
       DEFAULT_BASE_BRANCH: ionos-dev                     # Fallback target branch (other milestones / no versioned branch)
       COMMIT_PREFIX: "IONOS(config)"                     # Prefix for commit messages and PR titles
+      PR_LABEL: config                                   # Label added to the auto-created PR in the target repo
 
     steps:
       - name: Check GitHub CLI installation
@@ -158,8 +160,14 @@ jobs:
             BASE_BRANCH="${{ env.DEFAULT_BASE_BRANCH }}"
           else
             case "$SOURCE_MILESTONE" in
-              ncw-v33-2)
-                BASE_BRANCH="ionos-dev-v33"
+              ncw-v[0-9]*-[0-9]*)
+                # Milestone ncw-v<NN>-<N> maps to ionos-dev-v<NN>; use it only if the branch exists
+                MAJOR=$(sed -E 's/^ncw-v([0-9]+)-[0-9]+$/\1/' <<< "$SOURCE_MILESTONE")
+                BASE_BRANCH="${{ env.DEFAULT_BASE_BRANCH }}"
+                if [[ "$MAJOR" =~ ^[0-9]+$ ]] \
+                  && gh api "repos/${{ env.TARGET_REPO }}/branches/ionos-dev-v${MAJOR}" > /dev/null 2>&1; then
+                  BASE_BRANCH="ionos-dev-v${MAJOR}"
+                fi
                 ;;
               "")
                 # Source PR found but no milestone: use the latest ionos-dev-v<N> branch (highest N)
@@ -318,6 +326,12 @@ jobs:
             # Fetch the PR number via gh pr view instead of relying on gh pr create --json output format
             PR_NUMBER=$(gh pr view "$PR_URL" --repo "${{ env.TARGET_REPO }}" --json number --jq '.number')
             echo "::notice::Created PR: $PR_URL"
+          fi
+
+          # Label the PR (idempotent; non-fatal if the label does not exist in the target repo)
+          if ! gh api -X POST "repos/${{ env.TARGET_REPO }}/issues/$PR_NUMBER/labels" \
+            -f "labels[]=${{ env.PR_LABEL }}" > /dev/null; then
+            echo "::warning::Could not add label '${{ env.PR_LABEL }}' to PR #$PR_NUMBER"
           fi
 
           # Output the PR URL and number for other jobs
