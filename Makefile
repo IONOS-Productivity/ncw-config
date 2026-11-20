@@ -1,9 +1,15 @@
 # SPDX-FileCopyrightText: 2025 STRATO GmbH
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Build configuration
-TARGET_PACKAGE_NAME = ncw-server.zip
-PROJECT_NAME = ncw-server
+# Project selection: each project lives in IONOS/projects/<key>/ and provides
+# project.mk (app lists, package name, app folders) plus its own lists and configs.
+PROJECT ?= workspace
+PROJECT_DIR = IONOS/projects/$(PROJECT)
+ifeq ($(wildcard $(PROJECT_DIR)/project.mk),)
+$(error Unknown PROJECT "$(PROJECT)": $(PROJECT_DIR)/project.mk not found. Available: $(notdir $(patsubst %/,%,$(wildcard IONOS/projects/*/))))
+endif
+include $(PROJECT_DIR)/project.mk
+
 # Set parallel jobs with load balancing to prevent system overload
 # The following line sets MAKEFLAGS to use the number of available processors for parallel jobs,
 # and sets the load average to 1.5 times the number of processors.
@@ -26,68 +32,8 @@ NOTIFY_PUSH_BINARY = $(NOTIFY_PUSH_BIN_DIR)/notify_push
 NOTIFY_PUSH_VERSION = $(shell cd $(NOTIFY_PUSH_DIR) && grep -oP '(?<=<version>)[^<]+' appinfo/info.xml)
 NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(NOTIFY_PUSH_VERSION)/notify_push-$(ARCHITECTURE)-unknown-linux-musl
 
-# App directories that need full build (composer + npm + build)
-FULL_BUILD_APPS = \
-	activity \
-	assistant \
-	bruteforcesettings \
-	calendar \
-	collectives \
-	contacts \
-	deck \
-	end_to_end_encryption \
-	eurooffice \
-	files_pdfviewer \
-	groupfolders \
-	integration_openai \
-	mail \
-	ncw_apps_menu \
-	notes \
-	notifications \
-	spreed \
-	tables \
-	tasks \
-	text \
-	user_oidc \
-	user_saml \
-	viewer \
-	whiteboard
-
-# App directories that need only composer
-COMPOSER_ONLY_APPS = \
-	circles \
-	ncw_mailtemplate \
-	ncw_tools
-
-# App directories that need only composer but with --no-scripts (to avoid dev-only composer script issues)
-# These apps have @composer bin commands in post-install-cmd but the bamarni/composer-bin-plugin
-# is only in require-dev, so it fails when running with --no-dev
-# Intentionally left empty: currently, no apps require composer with --no-scripts only.
-COMPOSER_NO_SCRIPTS_APPS =
-
-# App directories that need composer with --no-scripts AND npm build
-# These apps have composer script issues with --no-dev but still need npm build
-COMPOSER_NO_SCRIPTS_WITH_NPM_APPS = \
-	forms \
-	password_policy \
-	twofactor_totp
-
-# App directories that need nothing to build (no changes made during build)
-NOTHING_TO_BUILD_APPS = \
-
-# Apps with special build targets (not in the standard categories above)
-# These apps have dedicated build_<app>_app targets with custom build logic
-SPECIAL_BUILD_APPS = \
-	notify_push
-
-# App folders to add to shipped.json (makes apps non-removable)
-# Add additional app folders here to include them in the shipped apps list
-APP_FOLDERS_TO_SHIP = \
-	apps-external
-	# apps-custom
-
 # Apps to be removed from final package (read from removed-apps.txt)
-REMOVE_UNWANTED_APPS = $(shell [ -f IONOS/projects/workspace/removed-apps.txt ] && sed '/^#/d;/^$$/d;s/^/apps\//' IONOS/projects/workspace/removed-apps.txt || echo "")
+REMOVE_UNWANTED_APPS = $(shell [ -f $(PROJECT_DIR)/removed-apps.txt ] && sed '/^#/d;/^$$/d;s/^/apps\//' $(PROJECT_DIR)/removed-apps.txt || echo "")
 
 # Generate build targets dynamically
 FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
@@ -277,7 +223,7 @@ build_notify_push_binary: $(NOTIFY_PUSH_BINARY) ## Download notify_push binary
 add_config_partials: .precheck ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
 	cp IONOS/configs/*.config.php config/
-	cp IONOS/projects/workspace/configs/*.config.php config/
+	cp $(PROJECT_DIR)/configs/*.config.php config/
 	@echo "[✓] Config files copied successfully"
 
 patch_shipped_json: .precheck ## Patch shipped.json
