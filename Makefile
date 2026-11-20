@@ -1,9 +1,15 @@
 # SPDX-FileCopyrightText: 2025 STRATO GmbH
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Build configuration
-TARGET_PACKAGE_NAME = ncw-server.zip
-PROJECT_NAME = ncw-server
+# Project selection: each project lives in IONOS/projects/<key>/ and provides
+# project.mk (app lists, package name, app folders) plus its own lists and configs.
+PROJECT ?= workspace
+PROJECT_DIR = IONOS/projects/$(PROJECT)
+ifeq ($(wildcard $(PROJECT_DIR)/project.mk),)
+$(error Unknown PROJECT "$(PROJECT)": $(PROJECT_DIR)/project.mk not found. Available: $(notdir $(patsubst %/,%,$(wildcard IONOS/projects/*/))))
+endif
+include $(PROJECT_DIR)/project.mk
+
 # Set parallel jobs with load balancing to prevent system overload
 # The following line sets MAKEFLAGS to use the number of available processors for parallel jobs,
 # and sets the load average to 1.5 times the number of processors.
@@ -26,68 +32,16 @@ NOTIFY_PUSH_BINARY = $(NOTIFY_PUSH_BIN_DIR)/notify_push
 NOTIFY_PUSH_VERSION = $(shell cd $(NOTIFY_PUSH_DIR) && grep -oP '(?<=<version>)[^<]+' appinfo/info.xml)
 NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(NOTIFY_PUSH_VERSION)/notify_push-$(ARCHITECTURE)-unknown-linux-musl
 
-# App directories that need full build (composer + npm + build)
-FULL_BUILD_APPS = \
-	activity \
-	assistant \
-	bruteforcesettings \
-	calendar \
-	collectives \
-	contacts \
-	deck \
-	end_to_end_encryption \
-	eurooffice \
-	files_pdfviewer \
-	groupfolders \
-	integration_openai \
-	mail \
-	ncw_apps_menu \
-	notes \
-	notifications \
-	spreed \
-	tables \
-	tasks \
-	text \
-	user_oidc \
-	user_saml \
-	viewer \
-	whiteboard
-
-# App directories that need only composer
-COMPOSER_ONLY_APPS = \
-	circles \
-	ncw_mailtemplate \
-	ncw_tools
-
-# App directories that need only composer but with --no-scripts (to avoid dev-only composer script issues)
-# These apps have @composer bin commands in post-install-cmd but the bamarni/composer-bin-plugin
-# is only in require-dev, so it fails when running with --no-dev
-# Intentionally left empty: currently, no apps require composer with --no-scripts only.
-COMPOSER_NO_SCRIPTS_APPS =
-
-# App directories that need composer with --no-scripts AND npm build
-# These apps have composer script issues with --no-dev but still need npm build
-COMPOSER_NO_SCRIPTS_WITH_NPM_APPS = \
-	forms \
-	password_policy \
-	twofactor_totp
-
-# App directories that need nothing to build (no changes made during build)
-NOTHING_TO_BUILD_APPS = \
-
-# Apps with special build targets (not in the standard categories above)
-# These apps have dedicated build_<app>_app targets with custom build logic
-SPECIAL_BUILD_APPS = \
-	notify_push
-
-# App folders to add to shipped.json (makes apps non-removable)
-# Add additional app folders here to include them in the shipped apps list
-APP_FOLDERS_TO_SHIP = \
-	apps-external
-	# apps-custom
-
 # Apps to be removed from final package (read from removed-apps.txt)
-REMOVE_UNWANTED_APPS = $(shell [ -f IONOS/removed-apps.txt ] && sed '/^#/d;/^$$/d;s/^/apps\//' IONOS/removed-apps.txt || echo "")
+REMOVE_UNWANTED_APPS = $(shell [ -f $(PROJECT_DIR)/removed-apps.txt ] && sed '/^#/d;/^$$/d;s/^/apps\//' $(PROJECT_DIR)/removed-apps.txt || echo "")
+
+# Opt-in per project (ONLY_LISTED_APPS = true in project.mk): leave apps in the shipped folders
+# that this project does not list out of the package. Off by default, so existing projects
+# keep shipping every directory in their folders.
+ALL_PROJECT_APPS = $(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(COMPOSER_NO_SCRIPTS_APPS) $(COMPOSER_NO_SCRIPTS_WITH_NPM_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS)
+ifeq ($(ONLY_LISTED_APPS),true)
+UNLISTED_APPS = $(foreach d,$(APP_FOLDERS_TO_SHIP),$(foreach a,$(notdir $(wildcard $(d)/*)),$(if $(filter $(a),$(ALL_PROJECT_APPS)),,$(d)/$(a))))
+endif
 
 # Generate build targets dynamically
 FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
@@ -184,10 +138,13 @@ help: ## This help.
 		fi; \
 	} >&2
 
+# Folder of an app: apps-external unless project.mk sets <app>_APP_DIR (e.g. demo_APP_DIR = apps-kodas)
+app_path = $(or $($(1)_APP_DIR),apps-external)
+
 # Common function to build apps with full build process
 define build_full_app
 	@echo "[i] Building $(1) app..."
-	@cd apps-external/$(1) && \
+	@cd $(call app_path,$(1))/$(1) && \
 		$(COMPOSER_INSTALL) && \
 		$(NPM_INSTALL) && \
 		$(NPM_BUILD)
@@ -197,7 +154,7 @@ endef
 # Common function to build apps with composer only
 define build_composer_app
 	@echo "[i] Building $(1) app..."
-	@cd apps-external/$(1) && \
+	@cd $(call app_path,$(1))/$(1) && \
 		$(COMPOSER_INSTALL)
 	@echo "[✓] $(1) app built successfully"
 endef
@@ -205,7 +162,7 @@ endef
 # Common function to build apps with composer only but skip scripts
 define build_composer_no_scripts_app
 	@echo "[i] Building $(1) app (no scripts)..."
-	@cd apps-external/$(1) && \
+	@cd $(call app_path,$(1))/$(1) && \
 		composer install --no-dev -o --no-interaction --no-scripts
 	@echo "[✓] $(1) app built successfully"
 endef
@@ -213,7 +170,7 @@ endef
 # Common function to build apps with composer (no scripts) plus npm build
 define build_composer_no_scripts_with_npm_app
 	@echo "[i] Building $(1) app (no scripts + npm)..."
-	@cd apps-external/$(1) && \
+	@cd $(call app_path,$(1))/$(1) && \
 		composer install --no-dev -o --no-interaction --no-scripts && \
 		$(NPM_INSTALL) && \
 		$(NPM_BUILD)
@@ -277,6 +234,7 @@ build_notify_push_binary: $(NOTIFY_PUSH_BINARY) ## Download notify_push binary
 add_config_partials: .precheck ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
 	cp IONOS/configs/*.config.php config/
+	cp $(PROJECT_DIR)/configs/*.config.php config/
 	@echo "[✓] Config files copied successfully"
 
 patch_shipped_json: .precheck ## Patch shipped.json
@@ -286,7 +244,7 @@ patch_shipped_json: .precheck ## Patch shipped.json
 	IONOS/scripts/patch_shipped_json_add_shipped_apps.sh $(APP_FOLDERS_TO_SHIP)
 
 	@echo "[i] Making core apps disableable and enforcing always-enabled apps..."
-	IONOS/apps-disable.sh
+	PROJECT_DIR=$(PROJECT_DIR) IONOS/apps-disable.sh
 
 version.json: .precheck ## Generate version file
 	@echo "[i] Generating version.json..."
@@ -297,13 +255,14 @@ version.json: .precheck ## Generate version file
 	ncVersion=$$(php -r 'include("version.php");echo implode(".", $$OC_Version);') && \
 	jq -n \
 		--arg project "$(PROJECT_NAME)" \
+		--arg projectKey "$(PROJECT)" \
 		--arg ncVersion "$$ncVersion" \
 		--arg buildBranch "$$buildBranch" \
 		--arg buildRef "$$buildRef" \
 		--arg buildDateIso "$$buildDateIso" \
 		--arg buildDate "$$buildDate" \
 		--arg notice "Static file, may be cached by the browser. Hard reload (Ctrl+Shift+R / Cmd+Shift+R) to see the current build." \
-		'{project: $$project, ncVersion: $$ncVersion, buildBranch: $$buildBranch, buildRef: $$buildRef, buildDateIso: $$buildDateIso, buildDate: $$buildDate, _notice: $$notice}' > version.json && \
+		'{project: $$project, projectKey: $$projectKey, ncVersion: $$ncVersion, buildBranch: $$buildBranch, buildRef: $$buildRef, buildDateIso: $$buildDateIso, buildDate: $$buildDate, _notice: $$notice}' > version.json && \
 	echo "[i] version.json created" && \
 	jq . version.json
 
@@ -326,7 +285,7 @@ zip_dependencies: patch_shipped_json version.json ## Zip relevant files
 		IONOS/ \
 		3rdparty/ \
 		apps/ \
-		apps-external/ \
+		$(addsuffix /,$(APP_FOLDERS_TO_SHIP)) \
 		config/ \
 		core/ \
 		dist/ \
@@ -373,7 +332,8 @@ zip_dependencies: patch_shipped_json version.json ## Zip relevant files
 	-x "composer.phar" \
 	-x "package.json" \
 	-x "package-lock.json" \
-	$(foreach app,$(REMOVE_UNWANTED_APPS),-x "$(app)/*")
+	$(foreach app,$(REMOVE_UNWANTED_APPS),-x "$(app)/*") \
+	$(foreach app,$(UNLISTED_APPS),-x "$(app)/*")
 	@echo "[i] Package $(TARGET_PACKAGE_NAME) created successfully"
 
 # Parallel build targets
@@ -417,7 +377,7 @@ validate_app_list_uniqueness: .precheck ## Validate that apps are only in one li
 		"$(COMPOSER_NO_SCRIPTS_WITH_NPM_APPS)" \
 		"$(NOTHING_TO_BUILD_APPS)" \
 		"$(SPECIAL_BUILD_APPS)" \
-		"$(MAKEFILE_LIST)"
+		"$(firstword $(MAKEFILE_LIST))"
 
 validate_all: .precheck ## Run all validation tasks
 	@echo "[i] Running validation..."
@@ -434,19 +394,21 @@ generate_external_apps_matrix: .precheck ## Generate external-apps-matrix.yml fi
 	# Sort apps alphabetically \
 	sorted_apps=$$(echo $$all_configured_apps | tr " " "\n" | sort | tr "\n" " "); \
 	for app in $$sorted_apps; do \
-		if [ -d "apps-external/$$app" ]; then \
+		dir=""; \
+		for folder in $(APP_FOLDERS_TO_SHIP); do [ -d "$$folder/$$app" ] && dir="$$folder"; done; \
+		if [ -n "$$dir" ]; then \
 			echo "  - name: $$app"; \
-			echo "    path: apps-external/$$app"; \
+			echo "    path: $$dir/$$app"; \
 			\
 			# Check for npm (package.json) \
-			if [ -f "apps-external/$$app/package.json" ]; then \
+			if [ -f "$$dir/$$app/package.json" ]; then \
 				echo "    has_npm: true"; \
 			else \
 				echo "    has_npm: false"; \
 			fi; \
 			\
 			# Check for composer (composer.json) \
-			if [ -f "apps-external/$$app/composer.json" ]; then \
+			if [ -f "$$dir/$$app/composer.json" ]; then \
 				echo "    has_composer: true"; \
 			else \
 				echo "    has_composer: false"; \
@@ -460,7 +422,7 @@ generate_external_apps_matrix: .precheck ## Generate external-apps-matrix.yml fi
 	done'
 
 generate_external_apps_matrix_json: .precheck ## Generate external-apps-matrix.json file with app configuration details
-	@IONOS/scripts/generate_external_apps_matrix_json.sh \
+	@APP_FOLDERS="$(APP_FOLDERS_TO_SHIP)" IONOS/scripts/generate_external_apps_matrix_json.sh \
 		"$(FULL_BUILD_APPS)" \
 		"$(COMPOSER_ONLY_APPS)" \
 		"$(COMPOSER_NO_SCRIPTS_APPS)" \
