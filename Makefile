@@ -236,7 +236,7 @@ patch_shipped_json: .precheck ## Patch shipped.json
 	IONOS/scripts/patch_shipped_json_add_shipped_apps.sh $(APP_FOLDERS_TO_SHIP)
 
 	@echo "[i] Making core apps disableable and enforcing always-enabled apps..."
-	IONOS/apps-disable.sh
+	PROJECT_DIR=$(PROJECT_DIR) IONOS/apps-disable.sh
 
 version.json: .precheck ## Generate version file
 	@echo "[i] Generating version.json..."
@@ -247,13 +247,14 @@ version.json: .precheck ## Generate version file
 	ncVersion=$$(php -r 'include("version.php");echo implode(".", $$OC_Version);') && \
 	jq -n \
 		--arg project "$(PROJECT_NAME)" \
+		--arg projectKey "$(PROJECT)" \
 		--arg ncVersion "$$ncVersion" \
 		--arg buildBranch "$$buildBranch" \
 		--arg buildRef "$$buildRef" \
 		--arg buildDateIso "$$buildDateIso" \
 		--arg buildDate "$$buildDate" \
 		--arg notice "Static file, may be cached by the browser. Hard reload (Ctrl+Shift+R / Cmd+Shift+R) to see the current build." \
-		'{project: $$project, ncVersion: $$ncVersion, buildBranch: $$buildBranch, buildRef: $$buildRef, buildDateIso: $$buildDateIso, buildDate: $$buildDate, _notice: $$notice}' > version.json && \
+		'{project: $$project, projectKey: $$projectKey, ncVersion: $$ncVersion, buildBranch: $$buildBranch, buildRef: $$buildRef, buildDateIso: $$buildDateIso, buildDate: $$buildDate, _notice: $$notice}' > version.json && \
 	echo "[i] version.json created" && \
 	jq . version.json
 
@@ -367,7 +368,7 @@ validate_app_list_uniqueness: .precheck ## Validate that apps are only in one li
 		"$(COMPOSER_NO_SCRIPTS_WITH_NPM_APPS)" \
 		"$(NOTHING_TO_BUILD_APPS)" \
 		"$(SPECIAL_BUILD_APPS)" \
-		"$(MAKEFILE_LIST)"
+		"$(firstword $(MAKEFILE_LIST))"
 
 validate_all: .precheck ## Run all validation tasks
 	@echo "[i] Running validation..."

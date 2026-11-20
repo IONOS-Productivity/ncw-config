@@ -36,7 +36,7 @@ set -e
 #
 # PREREQUISITES:
 #   - jq (JSON processor) must be installed
-#   - disabled-apps.list must exist in the same directory
+#   - disabled-apps.list must exist in the project directory (PROJECT_DIR, default IONOS/projects/$PROJECT)
 #   - always-enabled-apps.list is optional but will be processed if present
 #   - ../core/shipped.json must exist and be valid JSON
 #
@@ -84,8 +84,10 @@ set -e
 # Configuration: Base directory and file paths
 BDIR="$(dirname "${0}")"
 SHIPPED_JSON="${BDIR}/../core/shipped.json"
-DISABLED_APPS_FILE="${BDIR}/projects/workspace/disabled-apps.list"
-ALWAYS_ENABLED_APPS_FILE="${BDIR}/projects/workspace/always-enabled-apps.list"
+# shellcheck source=scripts/resolve-project.sh
+IONOS_DIR="${BDIR}" . "${BDIR}/scripts/resolve-project.sh"
+DISABLED_APPS_FILE="${PROJECT_DIR}/disabled-apps.list"
+ALWAYS_ENABLED_APPS_FILE="${PROJECT_DIR}/always-enabled-apps.list"
 
 ################################################################################
 # Logging Functions

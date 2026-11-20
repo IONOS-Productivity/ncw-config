@@ -33,9 +33,10 @@ read_app_list() {
 	grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "${_list_file}" | tr '\n' ' '
 }
 
-DISABLED_APPS=$( read_app_list "${BDIR}/projects/workspace/disabled-apps.list" )
-ENABLED_CORE_APPS=$( read_app_list "${BDIR}/projects/workspace/enabled-core-apps.list" )
-REMOVED_APPS=$( read_app_list "${BDIR}/projects/workspace/removed-apps.txt" )
+IONOS_DIR="${BDIR}" . "${BDIR}/scripts/resolve-project.sh"
+DISABLED_APPS=$( read_app_list "${PROJECT_DIR}/disabled-apps.list" )
+ENABLED_CORE_APPS=$( read_app_list "${PROJECT_DIR}/enabled-core-apps.list" )
+REMOVED_APPS=$( read_app_list "${PROJECT_DIR}/removed-apps.txt" )
 
 execute_occ_command() {
 	php "${NEXTCLOUD_DIR}/occ" \
