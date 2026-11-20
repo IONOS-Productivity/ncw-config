@@ -4,6 +4,35 @@
 -->
 # IONOS Nextcloud Workspace configuration
 
+## Projects
+
+One checkout builds several products ("projects"). Each project lives in `IONOS/projects/<key>/`:
+
+| File | Purpose |
+|------|---------|
+| `project.mk` | package name, app lists, `APP_FOLDERS_TO_SHIP`, optional `<app>_APP_DIR` and `ONLY_LISTED_APPS` |
+| `removed-apps.txt`, `disabled-apps.list`, `always-enabled-apps.list`, `enabled-core-apps.list` | app lists, see below |
+| `configs/*.config.php` | config partials copied to `config/` after the shared `IONOS/configs/` ones |
+| `app-config/` | app configuration files read by `configure.sh` |
+
+Select a project with `PROJECT=<key>` (default `workspace`):
+
+```bash
+make -f IONOS/Makefile PROJECT=kodas build_release
+```
+
+The version.json of a build records the `projectKey`, so the runtime scripts (`configure.sh`, `apps-enable.sh`) use the same project. They can be overridden with the `PROJECT` or `PROJECT_DIR` environment variables.
+
+### Adding a project
+
+1. Copy `projects/workspace/` to `projects/<key>/` and adjust `project.mk` and the lists.
+2. Apps shared by all projects stay in `apps-external/`. Apps that belong to one project go into their own folder, for example `apps-<key>/`:
+   - add the folder to `APP_FOLDERS_TO_SHIP` and set `<app>_APP_DIR = apps-<key>` for each app in it,
+   - register it in `projects/<key>/configs/app-paths.config.php` (`apps_paths` is replaced, not merged, so list every path).
+3. Set `ONLY_LISTED_APPS = true` if apps in the shared folders that the project does not list must not be packaged.
+
+`validate_external_apps` still only looks at `apps-external/`.
+
 ## Building for local development
 
 ```bash
@@ -19,6 +48,8 @@ make -f IONOS/Makefile build_release
 ## Configuration Files
 
 ### removed-apps.txt
+
+The app lists below live in `projects/<key>/`.
 
 This file contains a list of Nextcloud core apps that are excluded from the IONOS Nextcloud Workspace distribution.
 
