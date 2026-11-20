@@ -130,10 +130,13 @@ help: ## This help.
 		fi; \
 	} >&2
 
+# Folder of an app: apps-external unless project.mk sets <app>_APP_DIR (e.g. demo_APP_DIR = apps-kodas)
+app_path = $(or $($(1)_APP_DIR),apps-external)
+
 # Common function to build apps with full build process
 define build_full_app
 	@echo "[i] Building $(1) app..."
-	@cd apps-external/$(1) && \
+	@cd $(call app_path,$(1))/$(1) && \
 		$(COMPOSER_INSTALL) && \
 		$(NPM_INSTALL) && \
 		$(NPM_BUILD)
@@ -143,7 +146,7 @@ endef
 # Common function to build apps with composer only
 define build_composer_app
 	@echo "[i] Building $(1) app..."
-	@cd apps-external/$(1) && \
+	@cd $(call app_path,$(1))/$(1) && \
 		$(COMPOSER_INSTALL)
 	@echo "[✓] $(1) app built successfully"
 endef
@@ -151,7 +154,7 @@ endef
 # Common function to build apps with composer only but skip scripts
 define build_composer_no_scripts_app
 	@echo "[i] Building $(1) app (no scripts)..."
-	@cd apps-external/$(1) && \
+	@cd $(call app_path,$(1))/$(1) && \
 		composer install --no-dev -o --no-interaction --no-scripts
 	@echo "[✓] $(1) app built successfully"
 endef
@@ -159,7 +162,7 @@ endef
 # Common function to build apps with composer (no scripts) plus npm build
 define build_composer_no_scripts_with_npm_app
 	@echo "[i] Building $(1) app (no scripts + npm)..."
-	@cd apps-external/$(1) && \
+	@cd $(call app_path,$(1))/$(1) && \
 		composer install --no-dev -o --no-interaction --no-scripts && \
 		$(NPM_INSTALL) && \
 		$(NPM_BUILD)
@@ -273,7 +276,7 @@ zip_dependencies: patch_shipped_json version.json ## Zip relevant files
 		IONOS/ \
 		3rdparty/ \
 		apps/ \
-		apps-external/ \
+		$(addsuffix /,$(APP_FOLDERS_TO_SHIP)) \
 		config/ \
 		core/ \
 		dist/ \
@@ -381,19 +384,21 @@ generate_external_apps_matrix: .precheck ## Generate external-apps-matrix.yml fi
 	# Sort apps alphabetically \
 	sorted_apps=$$(echo $$all_configured_apps | tr " " "\n" | sort | tr "\n" " "); \
 	for app in $$sorted_apps; do \
-		if [ -d "apps-external/$$app" ]; then \
+		dir=""; \
+		for folder in $(APP_FOLDERS_TO_SHIP); do [ -d "$$folder/$$app" ] && dir="$$folder"; done; \
+		if [ -n "$$dir" ]; then \
 			echo "  - name: $$app"; \
-			echo "    path: apps-external/$$app"; \
+			echo "    path: $$dir/$$app"; \
 			\
 			# Check for npm (package.json) \
-			if [ -f "apps-external/$$app/package.json" ]; then \
+			if [ -f "$$dir/$$app/package.json" ]; then \
 				echo "    has_npm: true"; \
 			else \
 				echo "    has_npm: false"; \
 			fi; \
 			\
 			# Check for composer (composer.json) \
-			if [ -f "apps-external/$$app/composer.json" ]; then \
+			if [ -f "$$dir/$$app/composer.json" ]; then \
 				echo "    has_composer: true"; \
 			else \
 				echo "    has_composer: false"; \
@@ -407,7 +412,7 @@ generate_external_apps_matrix: .precheck ## Generate external-apps-matrix.yml fi
 	done'
 
 generate_external_apps_matrix_json: .precheck ## Generate external-apps-matrix.json file with app configuration details
-	@IONOS/scripts/generate_external_apps_matrix_json.sh \
+	@APP_FOLDERS="$(APP_FOLDERS_TO_SHIP)" IONOS/scripts/generate_external_apps_matrix_json.sh \
 		"$(FULL_BUILD_APPS)" \
 		"$(COMPOSER_ONLY_APPS)" \
 		"$(COMPOSER_NO_SCRIPTS_APPS)" \
