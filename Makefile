@@ -35,6 +35,14 @@ NOTIFY_PUSH_URL = https://github.com/nextcloud/notify_push/releases/download/v$(
 # Apps to be removed from final package (read from removed-apps.txt)
 REMOVE_UNWANTED_APPS = $(shell [ -f $(PROJECT_DIR)/removed-apps.txt ] && sed '/^#/d;/^$$/d;s/^/apps\//' $(PROJECT_DIR)/removed-apps.txt || echo "")
 
+# Opt-in per project (ONLY_LISTED_APPS = true in project.mk): leave apps in the shipped folders
+# that this project does not list out of the package. Off by default, so existing projects
+# keep shipping every directory in their folders.
+ALL_PROJECT_APPS = $(FULL_BUILD_APPS) $(COMPOSER_ONLY_APPS) $(COMPOSER_NO_SCRIPTS_APPS) $(COMPOSER_NO_SCRIPTS_WITH_NPM_APPS) $(NOTHING_TO_BUILD_APPS) $(SPECIAL_BUILD_APPS)
+ifeq ($(ONLY_LISTED_APPS),true)
+UNLISTED_APPS = $(foreach d,$(APP_FOLDERS_TO_SHIP),$(foreach a,$(notdir $(wildcard $(d)/*)),$(if $(filter $(a),$(ALL_PROJECT_APPS)),,$(d)/$(a))))
+endif
+
 # Generate build targets dynamically
 FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
 COMPOSER_ONLY_TARGETS = $(patsubst %,build_%_app,$(COMPOSER_ONLY_APPS))
@@ -324,7 +332,8 @@ zip_dependencies: patch_shipped_json version.json ## Zip relevant files
 	-x "composer.phar" \
 	-x "package.json" \
 	-x "package-lock.json" \
-	$(foreach app,$(REMOVE_UNWANTED_APPS),-x "$(app)/*")
+	$(foreach app,$(REMOVE_UNWANTED_APPS),-x "$(app)/*") \
+	$(foreach app,$(UNLISTED_APPS),-x "$(app)/*")
 	@echo "[i] Package $(TARGET_PACKAGE_NAME) created successfully"
 
 # Parallel build targets
