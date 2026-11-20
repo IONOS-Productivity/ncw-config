@@ -84,8 +84,8 @@ set -e
 # Configuration: Base directory and file paths
 BDIR="$(dirname "${0}")"
 SHIPPED_JSON="${BDIR}/../core/shipped.json"
-DISABLED_APPS_FILE="${BDIR}/disabled-apps.list"
-ALWAYS_ENABLED_APPS_FILE="${BDIR}/always-enabled-apps.list"
+DISABLED_APPS_FILE="${BDIR}/projects/workspace/disabled-apps.list"
+ALWAYS_ENABLED_APPS_FILE="${BDIR}/projects/workspace/always-enabled-apps.list"
 
 ################################################################################
 # Logging Functions

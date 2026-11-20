@@ -87,7 +87,7 @@ APP_FOLDERS_TO_SHIP = \
 	# apps-custom
 
 # Apps to be removed from final package (read from removed-apps.txt)
-REMOVE_UNWANTED_APPS = $(shell [ -f IONOS/removed-apps.txt ] && sed '/^#/d;/^$$/d;s/^/apps\//' IONOS/removed-apps.txt || echo "")
+REMOVE_UNWANTED_APPS = $(shell [ -f IONOS/projects/workspace/removed-apps.txt ] && sed '/^#/d;/^$$/d;s/^/apps\//' IONOS/projects/workspace/removed-apps.txt || echo "")
 
 # Generate build targets dynamically
 FULL_BUILD_TARGETS = $(patsubst %,build_%_app,$(FULL_BUILD_APPS))
@@ -277,6 +277,7 @@ build_notify_push_binary: $(NOTIFY_PUSH_BINARY) ## Download notify_push binary
 add_config_partials: .precheck ## Copy custom config files to Nextcloud config
 	@echo "[i] Copying config files..."
 	cp IONOS/configs/*.config.php config/
+	cp IONOS/projects/workspace/configs/*.config.php config/
 	@echo "[✓] Config files copied successfully"
 
 patch_shipped_json: .precheck ## Patch shipped.json

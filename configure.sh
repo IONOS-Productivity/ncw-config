@@ -35,7 +35,7 @@ read_app_list() {
 	grep -v '^[[:space:]]*#' "${_list_file}" | grep -v '^[[:space:]]*$' | tr '\n' ' '
 }
 
-DISABLED_APPS=$( read_app_list "${SCRIPT_DIR}/disabled-apps.list" )
+DISABLED_APPS=$( read_app_list "${SCRIPT_DIR}/projects/workspace/disabled-apps.list" )
 
 #===============================================================================
 # Configuration Constants
@@ -495,7 +495,7 @@ configure_eurooffice_app() {
 	execute_occ_command config:app:set eurooffice DocumentServerUrl --value="${APP_EUROOFFICE_DOCUMENT_SERVER_URL}"
 	execute_occ_secret_command config:app:set eurooffice jwt_secret --sensitive --value="${APP_EUROOFFICE_JWT_SECRET}"
 
-	_def_formats_file="${SCRIPT_DIR}/app-config/eurooffice-def-formats.json"
+	_def_formats_file="${SCRIPT_DIR}/projects/workspace/app-config/eurooffice-def-formats.json"
 	if [ -f "${_def_formats_file}" ]; then
 		_def_formats="$(tr -d '[:space:]' < "${_def_formats_file}")"
 		execute_occ_command config:app:set eurooffice defFormats --value="${_def_formats}"
@@ -503,7 +503,7 @@ configure_eurooffice_app() {
 		log_warning "eurooffice-def-formats.json not found, skipping defFormats configuration"
 	fi
 
-	_edit_formats_file="${SCRIPT_DIR}/app-config/eurooffice-edit-formats.json"
+	_edit_formats_file="${SCRIPT_DIR}/projects/workspace/app-config/eurooffice-edit-formats.json"
 	if [ -f "${_edit_formats_file}" ]; then
 		_edit_formats="$(tr -d '[:space:]' < "${_edit_formats_file}")"
 		execute_occ_command config:app:set eurooffice editFormats --value="${_edit_formats}"

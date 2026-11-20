@@ -33,9 +33,9 @@ read_app_list() {
 	grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "${_list_file}" | tr '\n' ' '
 }
 
-DISABLED_APPS=$( read_app_list "${BDIR}/disabled-apps.list" )
-ENABLED_CORE_APPS=$( read_app_list "${BDIR}/enabled-core-apps.list" )
-REMOVED_APPS=$( read_app_list "${BDIR}/removed-apps.txt" )
+DISABLED_APPS=$( read_app_list "${BDIR}/projects/workspace/disabled-apps.list" )
+ENABLED_CORE_APPS=$( read_app_list "${BDIR}/projects/workspace/enabled-core-apps.list" )
+REMOVED_APPS=$( read_app_list "${BDIR}/projects/workspace/removed-apps.txt" )
 
 execute_occ_command() {
 	php "${NEXTCLOUD_DIR}/occ" \
