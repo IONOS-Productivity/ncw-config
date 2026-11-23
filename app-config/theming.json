@@ -2,10 +2,10 @@
   "$schema": "../../resources/config-import.schema.json",
   "apps": {
     "theming": {
-      "imprintUrlDefault": { "env": "IMPRINT_URL", "type": "mixed" },
-      "privacyUrlDefault": { "env": "PRIVACY_URL", "type": "mixed" },
-      "background_color": { "value": "#ffffff", "type": "mixed" },
-      "backgroundMime": { "value": "backgroundColor", "type": "mixed" },
+      "imprintUrlDefault": { "env": "IMPRINT_URL" },
+      "privacyUrlDefault": { "env": "PRIVACY_URL" },
+      "background_color": { "value": "#ffffff" },
+      "backgroundMime": { "value": "backgroundColor" },
       "disable-user-theming": { "value": true, "type": "boolean" }
     }
   }

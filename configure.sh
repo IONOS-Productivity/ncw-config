@@ -476,7 +476,7 @@ configure_eurooffice_app() {
 			log_error "${_pair#*:} is not valid JSON, skipping ${_formats_key} configuration"
 			continue
 		fi
-		_formats_json="$(printf '%s' "${_formats_json}" | jq -c --arg key "${_formats_key}" --arg text "${_formats_text}" '.[$key] = {value: $text, type: "mixed", format: "json-object"}')"
+		_formats_json="$(printf '%s' "${_formats_json}" | jq -c --arg key "${_formats_key}" --arg text "${_formats_text}" '.[$key] = {value: $text, format: "json-object"}')"
 	done
 	_formats_fragment="$(mktemp "${TMPDIR:-/tmp}/eurooffice-formats.XXXXXX")"
 	IMPORT_TEMP_FILES="${IMPORT_TEMP_FILES} ${_formats_fragment}"

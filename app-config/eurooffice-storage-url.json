@@ -2,7 +2,7 @@
   "$schema": "../../resources/config-import.schema.json",
   "apps": {
     "eurooffice": {
-      "StorageUrl": { "env": "APP_EUROOFFICE_STORAGE_URL", "type": "mixed" }
+      "StorageUrl": { "env": "APP_EUROOFFICE_STORAGE_URL" }
     }
   }
 }

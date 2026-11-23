@@ -10,7 +10,7 @@
       "default_image_model_id": { "env": "IONOSAI_IMAGE_MODEL", "default": "black-forest-labs/FLUX.1-schnell", "type": "string" }
     },
     "settings": {
-      "ai.taskprocessing_guests": { "value": "false", "type": "mixed" }
+      "ai.taskprocessing_guests": { "value": "false" }
     }
   }
 }
