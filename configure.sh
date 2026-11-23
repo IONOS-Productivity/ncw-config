@@ -41,29 +41,12 @@ DISABLED_APPS=$( read_app_list "${SCRIPT_DIR}/disabled-apps.list" )
 # Configuration Constants
 #===============================================================================
 
-# Admin delegation map: defines which app settings classes should be delegated
-# Format: app_name:full_class_path (one per line)
-# Each entry maps an app to its admin settings class that will be delegated
-# Note: Entries are sorted by app name before processing to ensure apps with
-#       multiple delegations are only enabled/disabled once
-readonly ADMIN_DELEGATION_MAP="
-groupfolders:OCA\\GroupFolders\\Settings\\Admin
-mail:OCA\\Mail\\Settings\\AdminSettings
-mail:OCA\\Mail\\Settings\\ProviderAccountOverviewSettings
-oauth2:OCA\\OAuth2\\Settings\\Admin
-password_policy:OCA\\Password_Policy\\Settings\\Settings
-settings:OCA\\Settings\\Settings\\Admin\\Security
-systemtags:OCA\\SystemTags\\Settings\\Admin
-user_ldap:OCA\\User_LDAP\\Settings\\Admin
-activity:OCA\\Activity\\Settings\\Admin
-theming:OCA\\Theming\\Settings\\AdminLegalUrls
-bruteforcesettings:OCA\\BruteForceSettings\\Settings\\IPWhitelist
-user_oidc:OCA\\UserOIDC\\Settings\\AdminSettings
-files_external:OCA\\Files_External\\Settings\\Admin
-user_saml:OCA\\User_SAML\\Settings\\Admin
-eurooffice:OCA\\Eurooffice\\AdminSettingsTemplates
-eurooffice:OCA\\Eurooffice\\AdminSettingsSecurity
-"
+# App config fragments (JSON) imported with ionos:config:import. The configure_*
+# functions queue the fragments that apply to this deployment, apply_app_config_import
+# imports them all in one occ call. Secrets are never part of a fragment, they are
+# read from the environment by the import.
+APP_CONFIG_DIR="${SCRIPT_DIR}/app-config"
+IMPORT_FRAGMENTS=""
 
 #===============================================================================
 # Logging Functions
@@ -308,6 +291,41 @@ enable_app() {
 
 	log_info "Enable ${_display_name} app"
 	execute_occ_command app:enable "${_app_name}"
+}
+
+# Queue an app config fragment for the import at the end of the run
+# Usage: add_import_fragment <file name in app-config/>
+add_import_fragment() {
+	_fragment="${APP_CONFIG_DIR}/${1}"
+	if [ ! -f "${_fragment}" ]; then
+		log_fatal "App config fragment not found: ${_fragment}"
+	fi
+	IMPORT_FRAGMENTS="${IMPORT_FRAGMENTS} ${_fragment}"
+}
+
+# Import all queued fragments with one ionos:config:import call
+# Usage: apply_app_config_import
+apply_app_config_import() {
+	if [ -z "${IMPORT_FRAGMENTS}" ]; then
+		log_info "No app config fragments to import"
+		return 0
+	fi
+
+	# The command ships with the server, make sure this build has it
+	if ! php occ list ionos --raw 2>/dev/null | grep -q '^ionos:config:import '; then
+		log_fatal "occ ionos:config:import is not available in this Nextcloud build"
+	fi
+
+	set --
+	_names=""
+	for _fragment in ${IMPORT_FRAGMENTS}; do
+		set -- "${@}" "${_fragment}"
+		_names="${_names} $(basename "${_fragment}")"
+	done
+
+	log_info "Importing app config:${_names}"
+	# --allow-unverified-delegations: some apps with delegated settings are disabled on purpose
+	execute_occ_command ionos:config:import --allow-unverified-delegations "${@}"
 }
 
 # Check if required dependencies are available
@@ -621,120 +639,7 @@ configure_admin_delegation() {
 		log_error "Admin delegation configuration requires settings.only-delegated-settings to be enabled"
 	fi
 
-	# Get app list as JSON
-	_app_list_json=$(execute_occ_command app:list --output json)
-	_occ_status=$?
-	if [ "${_occ_status}" -ne 0 ] || [ -z "${_app_list_json}" ]; then
-		log_error "Failed to retrieve app list as JSON. Aborting admin delegation configuration."
-		return 1
-	fi
-
-	# Use the delegation map defined at script start
-	_app_delegation_map="${ADMIN_DELEGATION_MAP}"
-
-	# Sort the delegation map by app name to ensure apps with multiple delegations
-	# are processed together (enabling/disabling each app only once)
-	_app_delegation_map=$(echo "${_app_delegation_map}" | grep -v '^[[:space:]]*$' | sort)
-
-	# Parse delegation map and group by app
-	_current_app=""
-	_delegations_for_app=""
-
-	for _entry in ${_app_delegation_map}; do
-		# Skip empty lines
-		[ -z "${_entry}" ] && continue
-
-		# Validate entry format: must contain exactly one colon
-		if [ "$(echo "${_entry}" | awk -F':' '{print NF-1}')" -ne 1 ]; then
-			log_error "Invalid delegation entry format (expected 'app:class'): '${_entry}'"
-			continue
-		fi
-
-		# Extract app and class from entry (format: app:class)
-		_app=$(echo "${_entry}" | cut -d':' -f1)
-		_class=$(echo "${_entry}" | cut -d':' -f2-)
-
-		# Check if this is a new app
-		if [ "${_current_app}" != "${_app}" ] && [ -n "${_current_app}" ]; then
-			# Check if current app is enabled using jq
-			_is_enabled=$(echo "${_app_list_json}" | jq -r ".enabled.\"${_current_app}\" // empty" 2>/dev/null)
-			# Process delegations for previous app
-			_process_app_delegations "${_current_app}" "${_delegations_for_app}" "${_is_enabled}"
-			_delegations_for_app=""
-		fi
-
-		_current_app="${_app}"
-		# Accumulate classes using newline as separator to preserve backslashes
-		if [ -z "${_delegations_for_app}" ]; then
-			_delegations_for_app="${_class}"
-		else
-			# keep next line as multiline in order to preserve the newlines
-			_delegations_for_app="${_delegations_for_app}
-${_class}"
-		fi
-	done
-
-	# Process last app's delegations
-	if [ -n "${_current_app}" ]; then
-		_is_enabled=$(echo "${_app_list_json}" | jq -r ".enabled.\"${_current_app}\" // empty" 2>/dev/null)
-		_process_app_delegations "${_current_app}" "${_delegations_for_app}" "${_is_enabled}"
-	fi
-}
-
-# Helper function to process delegations for a single app
-# Usage: _process_app_delegations <app_name> <delegation_classes> <is_enabled>
-_process_app_delegations() {
-	_app_name="${1}"
-	_delegation_classes="${2}"
-	_is_enabled="${3}"
-
-	_should_disable=false
-	if [ -z "${_is_enabled}" ]; then
-		log_info "App '${_app_name}' is disabled, enabling temporarily for delegation..."
-		if execute_occ_command app:enable "${_app_name}"; then
-			_should_disable=true
-		else
-			log_error "Failed to enable app '${_app_name}'. Skipping delegation configuration for this app."
-			return 1
-		fi
-	else
-		log_info "App '${_app_name}' is already enabled"
-	fi
-
-	# Add delegations for this app
-	# Fetch existing delegations once to avoid errors on re-runs.
-	# Use here-document (not pipe) so the loop runs in the current shell,
-	# preserving variable mutations (e.g. _ERROR_COUNT) in the parent process.
-	_previous_error_count="${_ERROR_COUNT}"
-	if ! _existing_delegations=$(execute_occ_command admin-delegation:show --output=json 2>/dev/null); then
-		_ERROR_COUNT="${_previous_error_count}"
-		_existing_delegations="[]"
-	fi
-	while IFS= read -r _delegation_class; do
-		if [ -n "${_delegation_class}" ]; then
-			if jq -e --arg class "${_delegation_class}" \
-				'any(.[].settings[]; .className == $class and (.delegatedGroups | contains(["admin"])))' \
-				>/dev/null 2>&1 <<EOF
-${_existing_delegations}
-EOF
-			then
-				log_info "Delegation for class '${_delegation_class}' to group 'admin' already exists, skipping"
-			else
-				log_info "Adding delegation for class: ${_delegation_class}"
-				execute_occ_command admin-delegation:add "${_delegation_class}" admin
-			fi
-		fi
-	done <<EOF
-${_delegation_classes}
-EOF
-
-	# Disable app if it was temporarily enabled
-	if [ "${_should_disable}" = true ]; then
-		log_info "Disabling app '${_app_name}' after delegation configuration..."
-		if ! execute_occ_command app:disable "${_app_name}"; then
-			log_warning "Failed to disable app '${_app_name}' after delegation configuration. App may remain enabled."
-		fi
-	fi
+	add_import_fragment delegation.json
 }
 
 # Configure IONOS mailconfig api with API credentials
@@ -1051,6 +956,7 @@ main() {
 	disable_configured_apps
 	configure_apps
 	configure_ionos_mailconfig_api
+	apply_app_config_import
 
 	report_timing_stats
 

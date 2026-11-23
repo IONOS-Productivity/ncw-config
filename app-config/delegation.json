@@ -1,0 +1,21 @@
+{
+  "$schema": "../../resources/config-import.schema.json",
+  "delegation": {
+    "OCA\\Activity\\Settings\\Admin": ["admin"],
+    "OCA\\BruteForceSettings\\Settings\\IPWhitelist": ["admin"],
+    "OCA\\Eurooffice\\AdminSettingsSecurity": ["admin"],
+    "OCA\\Eurooffice\\AdminSettingsTemplates": ["admin"],
+    "OCA\\Files_External\\Settings\\Admin": ["admin"],
+    "OCA\\GroupFolders\\Settings\\Admin": ["admin"],
+    "OCA\\Mail\\Settings\\AdminSettings": ["admin"],
+    "OCA\\Mail\\Settings\\ProviderAccountOverviewSettings": ["admin"],
+    "OCA\\OAuth2\\Settings\\Admin": ["admin"],
+    "OCA\\Password_Policy\\Settings\\Settings": ["admin"],
+    "OCA\\Settings\\Settings\\Admin\\Security": ["admin"],
+    "OCA\\SystemTags\\Settings\\Admin": ["admin"],
+    "OCA\\Theming\\Settings\\AdminLegalUrls": ["admin"],
+    "OCA\\UserOIDC\\Settings\\AdminSettings": ["admin"],
+    "OCA\\User_LDAP\\Settings\\Admin": ["admin"],
+    "OCA\\User_SAML\\Settings\\Admin": ["admin"]
+  }
+}
