@@ -1,0 +1,8 @@
+{
+  "$schema": "../../resources/config-import.schema.json",
+  "apps": {
+    "notify_push": {
+      "base_endpoint": { "env": "NOTIFY_PUSH_BASE_ENDPOINT", "type": "string" }
+    }
+  }
+}

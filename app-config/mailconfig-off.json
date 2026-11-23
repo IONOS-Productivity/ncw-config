@@ -1,0 +1,8 @@
+{
+  "$schema": "../../resources/config-import.schema.json",
+  "apps": {
+    "mail": {
+      "ionos-mailconfig-enabled": { "value": "no", "type": "string" }
+    }
+  }
+}

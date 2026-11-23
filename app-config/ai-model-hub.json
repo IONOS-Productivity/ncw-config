@@ -1,0 +1,16 @@
+{
+  "$schema": "../../resources/config-import.schema.json",
+  "apps": {
+    "integration_openai": {
+      "url": { "env": "IONOSAI_URL", "type": "string" },
+      "api_key": { "env": "IONOSAI_TOKEN", "type": "string", "sensitive": true },
+      "max_tokens": { "env": "IONOSAI_MAX_TOKENS", "default": 1000, "type": "string" },
+      "use_max_completion_tokens_param": { "env": "IONOSAI_USE_MAX_COMPLETION_TOKENS_PARAM", "default": 0, "type": "string" },
+      "default_completion_model_id": { "env": "IONOSAI_TEXT_MODEL", "default": "openai/gpt-oss-120b", "type": "string" },
+      "default_image_model_id": { "env": "IONOSAI_IMAGE_MODEL", "default": "black-forest-labs/FLUX.1-schnell", "type": "string" }
+    },
+    "settings": {
+      "ai.taskprocessing_guests": { "value": "false", "type": "mixed" }
+    }
+  }
+}

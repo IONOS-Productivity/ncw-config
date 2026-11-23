@@ -1,0 +1,12 @@
+{
+  "$schema": "../../resources/config-import.schema.json",
+  "apps": {
+    "theming": {
+      "imprintUrlDefault": { "env": "IMPRINT_URL", "type": "mixed" },
+      "privacyUrlDefault": { "env": "PRIVACY_URL", "type": "mixed" },
+      "background_color": { "value": "#ffffff", "type": "mixed" },
+      "backgroundMime": { "value": "backgroundColor", "type": "mixed" },
+      "disable-user-theming": { "value": true, "type": "boolean" }
+    }
+  }
+}

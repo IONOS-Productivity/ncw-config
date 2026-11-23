@@ -26,3 +26,9 @@ path = "post-upgrade/upgrade-31.0.8.1-ca0cfce-to-33.0.9.1-35fa7bc.sh"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 STRATO GmbH"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = "app-config/*.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 STRATO GmbH"
+SPDX-License-Identifier = "AGPL-3.0-or-later"

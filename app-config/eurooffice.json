@@ -1,0 +1,11 @@
+{
+  "$schema": "../../resources/config-import.schema.json",
+  "apps": {
+    "eurooffice": {
+      "DocumentServerUrl": { "env": "APP_EUROOFFICE_DOCUMENT_SERVER_URL", "type": "mixed" },
+      "jwt_secret": { "env": "APP_EUROOFFICE_JWT_SECRET", "type": "mixed", "sensitive": true },
+      "emailNotifications": { "value": "false", "type": "string" },
+      "customizationFeedback": { "value": "false", "type": "mixed" }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "$schema": "../../resources/config-import.schema.json",
+  "apps": {
+    "whiteboard": {
+      "collabBackendUrl": { "env": "WHITEBOARD_COLLAB_BACKEND_URL", "type": "mixed" },
+      "jwt_secret_key": { "env": "APP_WHITEBOARD_JWT_SECRET", "type": "mixed", "sensitive": true }
+    }
+  }
+}
