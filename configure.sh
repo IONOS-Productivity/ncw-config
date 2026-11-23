@@ -47,6 +47,8 @@ DISABLED_APPS=$( read_app_list "${SCRIPT_DIR}/disabled-apps.list" )
 # read from the environment by the import.
 APP_CONFIG_DIR="${SCRIPT_DIR}/app-config"
 IMPORT_FRAGMENTS=""
+# Temporary fragments generated at runtime, removed on exit
+IMPORT_TEMP_FILES=""
 
 #===============================================================================
 # Logging Functions
@@ -225,64 +227,6 @@ validate_env_vars() {
 	return 0
 }
 
-# Set app config value with automatic type checking and correction
-# Usage: set_app_config_typed <app> <key> <value> <expected_type> [additional_flags...]
-# Expected types: string, integer, float, boolean, array
-# This function checks if the key exists with wrong type and deletes it before setting
-# Additional flags like --sensitive can be passed after the first 4 required arguments
-# Usage: set_app_config_typed myapp mykey myvalue string
-set_app_config_typed() {
-	_app="${1}"
-	_key="${2}"
-	_value="${3}"
-	_expected_type="${4}"
-	shift 4  # Remove first 4 args, leaving any additional flags
-
-	# Get current config value with type information from JSON output
-	if ! _current_json=$(php occ config:list "${_app}" --private 2>/dev/null); then
-		echo "Error: failed to read config for app '${_app}' via 'php occ config:list'." >&2
-		return 1
-	fi
-
-	# Check if the key exists in the JSON, regardless of its value (including "" or null)
-	if echo "${_current_json}" | jq -e ".apps.\"${_app}\" | has(\"${_key}\")" >/dev/null 2>&1; then
-		# Determine the JSON type of the current value using jq
-		_current_type=$(echo "${_current_json}" | jq -r ".apps.\"${_app}\".\"${_key}\" | type" 2>/dev/null)
-
-		# Compare the jq-reported type with the expected type
-		case "${_expected_type}" in
-			string)
-				if [ "${_current_type}" != "string" ]; then
-					log_info "Config key ${_key} exists with wrong type (current: ${_current_type}, expected: ${_expected_type}), deleting..."
-					execute_occ_command config:app:delete "${_app}" "${_key}"
-				fi
-				;;
-			array)
-				if [ "${_current_type}" != "array" ]; then
-					log_info "Config key ${_key} exists with wrong type (current: ${_current_type}, expected: ${_expected_type}), deleting..."
-					execute_occ_command config:app:delete "${_app}" "${_key}"
-				fi
-				;;
-			integer|float)
-				# jq reports both integers and floats as "number"
-				if [ "${_current_type}" != "number" ]; then
-					log_info "Config key ${_key} exists with wrong type (current: ${_current_type}, expected: ${_expected_type}), deleting..."
-					execute_occ_command config:app:delete "${_app}" "${_key}"
-				fi
-				;;
-			boolean)
-				if [ "${_current_type}" != "boolean" ]; then
-					log_info "Config key ${_key} exists with wrong type (current: ${_current_type}, expected: ${_expected_type}), deleting..."
-					execute_occ_command config:app:delete "${_app}" "${_key}"
-				fi
-				;;
-		esac
-	fi
-
-	# Set with correct type (pass through any additional flags)
-	execute_occ_command config:app:set "$@" --value "${_value}" --type "${_expected_type}" "${_app}" "${_key}"
-}
-
 # Enable a Nextcloud app with logging
 # Usage: enable_app <app_name> [display_name]
 enable_app() {
@@ -397,14 +341,13 @@ configure_theming() {
 
 	log_info "Setting legal URLs for market ${MARKET}: imprintUrl=${IMPRINT_URL}, privacyUrl=${PRIVACY_URL}"
 
-	execute_occ_command config:app:set theming imprintUrlDefault --value "${IMPRINT_URL}"
-	execute_occ_command config:app:set theming privacyUrlDefault --value "${PRIVACY_URL}"
+	# The legal URLs are read from the environment by the theming fragment
+	export IMPRINT_URL PRIVACY_URL
+	add_import_fragment theming.json
+
 	execute_occ_command theming:config primary_color "#003D8F"
-	execute_occ_command config:app:set --value "#ffffff" -- theming background_color
-	set_app_config_typed theming disable-user-theming true boolean
 	execute_occ_command theming:config disable_admin_theming yes
 	#execute_occ_command theming:config favicon "${FAVICON_DIR}/favicon.ico"
-	execute_occ_command config:app:set theming backgroundMime --value backgroundColor
 	execute_occ_command theming:config url ""
 
 	# Set homepage URL if configured
@@ -430,10 +373,10 @@ configure_notify_push_app() {
 		return 0
 	fi
 
-	_notify_push_endpoint="${_base_url}/push"
-	log_info "Setting notify_push base_endpoint: ${_notify_push_endpoint}"
-
-	execute_occ_command config:app:set --value "${_notify_push_endpoint}" --type string -- notify_push base_endpoint
+	NOTIFY_PUSH_BASE_ENDPOINT="${_base_url}/push"
+	export NOTIFY_PUSH_BASE_ENDPOINT
+	log_info "Setting notify_push base_endpoint: ${NOTIFY_PUSH_BASE_ENDPOINT}"
+	add_import_fragment notify-push.json
 }
 
 # Configure files_antivirus app
@@ -465,13 +408,20 @@ configure_files_antivirus_app() {
 # Usage: configure_whiteboard_app
 configure_whiteboard_app() {
 	log_info "Configuring whiteboard app..."
+
+	if ! validate_env_vars APP_WHITEBOARD_COLLABBACKEND_URL APP_WHITEBOARD_JWT_SECRET; then
+		log_warning "whiteboard app configuration skipped due to missing environment variables"
+		return 0
+	fi
+
 	# Fallback: Default value for port is "-" if port is not set
 	_collab_backend_port="${APP_WHITEBOARD_COLLABBACKEND_PORT:-3002}"
+	WHITEBOARD_COLLAB_BACKEND_URL="${APP_WHITEBOARD_COLLABBACKEND_URL}"
 	if [ "${_collab_backend_port}" != "-" ]; then
-		APP_WHITEBOARD_COLLABBACKEND_URL="${APP_WHITEBOARD_COLLABBACKEND_URL}:${_collab_backend_port}"
+		WHITEBOARD_COLLAB_BACKEND_URL="${WHITEBOARD_COLLAB_BACKEND_URL}:${_collab_backend_port}"
 	fi
-	execute_occ_secret_command config:app:set whiteboard collabBackendUrl --value="${APP_WHITEBOARD_COLLABBACKEND_URL}"
-	execute_occ_secret_command config:app:set whiteboard jwt_secret_key --sensitive --value="${APP_WHITEBOARD_JWT_SECRET}"
+	export WHITEBOARD_COLLAB_BACKEND_URL
+	add_import_fragment whiteboard.json
 }
 
 # Select and configure the document editor app based on DOCUMENT_APP env var.
@@ -509,35 +459,37 @@ configure_eurooffice_app() {
 
 	enable_app eurooffice "Euro-Office"
 
-	set_app_config_typed eurooffice emailNotifications "false" "string"
-	execute_occ_command config:app:set eurooffice DocumentServerUrl --value="${APP_EUROOFFICE_DOCUMENT_SERVER_URL}"
-	execute_occ_secret_command config:app:set eurooffice jwt_secret --sensitive --value="${APP_EUROOFFICE_JWT_SECRET}"
+	add_import_fragment eurooffice.json
 
-	_def_formats_file="${SCRIPT_DIR}/app-config/eurooffice-def-formats.json"
-	if [ -f "${_def_formats_file}" ]; then
-		_def_formats="$(tr -d '[:space:]' < "${_def_formats_file}")"
-		execute_occ_command config:app:set eurooffice defFormats --value="${_def_formats}"
-	else
-		log_warning "eurooffice-def-formats.json not found, skipping defFormats configuration"
-	fi
-
-	_edit_formats_file="${SCRIPT_DIR}/app-config/eurooffice-edit-formats.json"
-	if [ -f "${_edit_formats_file}" ]; then
-		_edit_formats="$(tr -d '[:space:]' < "${_edit_formats_file}")"
-		execute_occ_command config:app:set eurooffice editFormats --value="${_edit_formats}"
-	else
-		log_warning "eurooffice-edit-formats.json not found, skipping editFormats configuration"
-	fi
+	# defFormats and editFormats hold JSON as text. Their fragment is built from the readable
+	# source files: jq fails on malformed JSON, and the import checks the result once more
+	# ("format": "json-object") before anything is written.
+	_formats_json='{}'
+	for _pair in "defFormats:eurooffice-def-formats.json" "editFormats:eurooffice-edit-formats.json"; do
+		_formats_key="${_pair%%:*}"
+		_formats_file="${APP_CONFIG_DIR}/${_pair#*:}"
+		if [ ! -f "${_formats_file}" ]; then
+			log_warning "${_pair#*:} not found, skipping ${_formats_key} configuration"
+			continue
+		fi
+		if ! _formats_text="$(jq -c . "${_formats_file}")"; then
+			log_error "${_pair#*:} is not valid JSON, skipping ${_formats_key} configuration"
+			continue
+		fi
+		_formats_json="$(printf '%s' "${_formats_json}" | jq -c --arg key "${_formats_key}" --arg text "${_formats_text}" '.[$key] = {value: $text, type: "mixed", format: "json-object"}')"
+	done
+	_formats_fragment="$(mktemp "${TMPDIR:-/tmp}/eurooffice-formats.XXXXXX")"
+	IMPORT_TEMP_FILES="${IMPORT_TEMP_FILES} ${_formats_fragment}"
+	printf '%s' "${_formats_json}" | jq '{apps: {eurooffice: .}}' > "${_formats_fragment}"
+	IMPORT_FRAGMENTS="${IMPORT_FRAGMENTS} ${_formats_fragment}"
 
 	# StorageUrl: URL the document server uses to fetch files from Nextcloud.
 	# Set this when the document server cannot reach Nextcloud via the public URL
 	# (e.g. dev: document server in pasta networking needs host.containers.internal).
 	if [ -n "${APP_EUROOFFICE_STORAGE_URL:-}" ]; then
 		log_info "Setting eurooffice StorageUrl: ${APP_EUROOFFICE_STORAGE_URL}"
-		execute_occ_command config:app:set eurooffice StorageUrl --value="${APP_EUROOFFICE_STORAGE_URL}"
+		add_import_fragment eurooffice-storage-url.json
 	fi
-
-	execute_occ_command config:app:set eurooffice customizationFeedback --value=false
 
 	log_info "eurooffice app configured with DocumentServerUrl: ${APP_EUROOFFICE_DOCUMENT_SERVER_URL}"
 }
@@ -621,7 +573,7 @@ EOF
 # Usage: configure_viewer_app
 configure_viewer_app() {
 	log_info "Configuring viewer app..."
-	execute_occ_command config:app:set --value yes --type string viewer always_show_viewer
+	add_import_fragment viewer.json
 }
 
 # Configure admin delegation
@@ -647,12 +599,12 @@ configure_admin_delegation() {
 configure_ionos_mailconfig_api() {
 	log_info "Configuring IONOS mailconfig API with credentials..."
 
-	execute_occ_command config:app:set --value no --type string mail ionos-mailconfig-enabled
-
+	# Exactly one fragment is queued: off in every early return below, on when everything is in place.
 	# Disable mailconfig if brand is not "IONOS"
 	log_info "BRAND: ${BRAND}"
 	if [ "$BRAND" != "IONOS" ]; then
 		log_info "Brand is not 'IONOS', ionos-mailconfig-enabled remains disabled"
+		add_import_fragment mailconfig-off.json
 		return 0
 	fi
 
@@ -661,20 +613,19 @@ configure_ionos_mailconfig_api() {
 	# This flag is set by PSS and reflects whether a customer domain is connected.
 	if [ "${FUNCTIONAL_MAILBOX_POSSIBLE}" != '1' ]; then
 		log_info "Mailbox creation not possible (FUNCTIONAL_MAILBOX_POSSIBLE is not '1'), ionos-mailconfig-enabled remains disabled"
+		add_import_fragment mailconfig-off.json
 		return 0
 	fi
 
 	if ! validate_env_vars IONOS_MAILCONFIG_API_URL IONOS_MAILCONFIG_API_USER IONOS_MAILCONFIG_API_PASS EXT_REF; then
 		log_warning "Skipping mailconfig API configuration due to missing environment variables"
+		add_import_fragment mailconfig-off.json
 		return 0
 	fi
 
 	log_info "EXT_REF: ${EXT_REF}"
-	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_URL}" --type string mail ionos_mailconfig_api_base_url
-	execute_occ_command config:app:set --value "${IONOS_MAILCONFIG_API_USER}" --type string mail ionos_mailconfig_api_auth_user
-	execute_occ_secret_command config:app:set --value "${IONOS_MAILCONFIG_API_PASS}" --type string --sensitive mail ionos_mailconfig_api_auth_pass
-
-	execute_occ_command config:app:set --value yes --type string mail ionos-mailconfig-enabled
+	# Credentials come from the environment, the fragment also enables the integration
+	add_import_fragment mailconfig-on.json
 }
 
 # Configure mail app settings
@@ -684,7 +635,7 @@ configure_mail_app() {
 
 	enable_app mail "Mail"
 	# save allow_new_mail_aliases as mixed type in order to be compatible wih legacy code
-	execute_occ_command config:app:set mail allow_new_mail_aliases --value=no
+	add_import_fragment mail.json
 }
 
 # Configure IONOS AI Model Hub with API credentials
@@ -700,31 +651,11 @@ configure_ionos_ai_model_hub() {
 
 	log_info "Configuring IONOS AI Model Hub with URL: ${IONOSAI_URL}"
 
-	# Configure AI Model Hub settings for integration_openai app
-	# Using Bearer token authentication (JWT format)
-	execute_occ_command config:app:set --value "${IONOSAI_URL}" --type string integration_openai url
-	execute_occ_secret_command config:app:set --value "${IONOSAI_TOKEN}" --type string --sensitive integration_openai api_key
+	# Settings of integration_openai (bearer token authentication) and of the AI assistant.
+	# Models and limits have defaults in the fragment.
+	add_import_fragment ai-model-hub.json
 
-	# Configure max_tokens (app stores as string internally)
-	_max_tokens="${IONOSAI_MAX_TOKENS:-1000}"
-	set_app_config_typed integration_openai max_tokens "${_max_tokens}" string
-
-	# Set use_max_completion_tokens_param (1=enabled, 0=disabled)
-	# Default is 0 for non-OpenAI services (app stores as string '1' or '0')
-	_use_max_completion_tokens_param="${IONOSAI_USE_MAX_COMPLETION_TOKENS_PARAM:-0}"
-	set_app_config_typed integration_openai use_max_completion_tokens_param "${_use_max_completion_tokens_param}" string
-
-	# Configure default text-to-text model
-	_text_model="${IONOSAI_TEXT_MODEL:-openai/gpt-oss-120b}"
-	execute_occ_command config:app:set --value "${_text_model}" --type string integration_openai default_completion_model_id
-
-	# Configure default text-to-image model
-	_image_model="${IONOSAI_IMAGE_MODEL:-black-forest-labs/FLUX.1-schnell}"
-	execute_occ_command config:app:set --value "${_image_model}" --type string integration_openai default_image_model_id
-
-	# Set AI assistant settings
-	log_info "Configuring AI Assistant settings... "
-	execute_occ_command config:app:set --value false settings ai.taskprocessing_guests
+	log_info "Configuring AI Assistant task types... "
 
 	_deactivated_tasks="
 		core:generateemoji
@@ -943,7 +874,7 @@ main() {
 	# Initialize timing log and record script start (always-on)
 	SCRIPT_START_MS="$(_get_ms)"
 	TIMING_LOG_FILE="/tmp/occ-timing-$$.log"
-	trap 'rm -f "${TIMING_LOG_FILE}"' EXIT INT TERM
+	trap 'rm -f "${TIMING_LOG_FILE}" ${IMPORT_TEMP_FILES}' EXIT INT TERM
 
 	log_info "Starting Nextcloud Workspace configuration process..."
 
