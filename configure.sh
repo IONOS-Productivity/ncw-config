@@ -277,6 +277,15 @@ apply_app_config_import() {
 	execute_occ_command ionos:config:import --allow-unverified-delegations "${@}"
 }
 
+# Enable several Nextcloud apps with one occ call
+# Every occ call boots the whole server, so this saves about a second per app. occ goes on
+# after an app that fails and reports each one, the exit code is non-zero if any failed.
+# Usage: enable_apps <app_name>...
+enable_apps() {
+	log_info "Enable apps: ${*}"
+	execute_occ_command app:enable "${@}"
+}
+
 # Check if required dependencies are available
 # Usage: check_dependencies
 check_dependencies() {
@@ -368,7 +377,6 @@ configure_theming() {
 # Usage: configure_notify_push_app
 configure_notify_push_app() {
 	log_info "Configuring notify_push app..."
-	execute_occ_command app:enable notify_push
 
 	log_info "Retrieving base URL for notify_push endpoint..."
 	_base_url=$(execute_occ_command config:system:get overwrite.cli.url)
@@ -638,7 +646,6 @@ configure_ionos_mailconfig_api() {
 configure_mail_app() {
 	log_info "Configuring mail app..."
 
-	enable_app mail "Mail"
 	# save allow_new_mail_aliases as mixed type in order to be compatible wih legacy code
 	add_import_fragment mail.json
 }
@@ -751,17 +758,13 @@ disable_configured_apps() {
 configure_apps() {
 	log_info "Configuring Nextcloud apps..."
 
-	# Enable core productivity apps
-	enable_app calendar "Calendar"
-	enable_app circles "Circles"
-	enable_app activity "Activity"
-	enable_app contacts "Contacts"
-	enable_app twofactor_totp "Two-Factor AuthenticationTOTP"
-	enable_app end_to_end_encryption "End-to-End Encryption"
-	enable_app notifications "Notifications"
-	enable_app tasks "Tasks"
-	enable_app text "Text"
-	enable_app ncw_apps_menu "NCW Apps Menu"
+	# Enable the apps that are always on with one call. Apps that depend on the environment
+	# (eurooffice, spreed) are enabled by their configure_* function, spreed needs to be
+	# enabled before its talk:* commands run.
+	enable_apps \
+		calendar circles activity contacts twofactor_totp end_to_end_encryption notifications tasks text ncw_apps_menu \
+		mail notify_push \
+		ncw_mailtemplate groupfolders assistant integration_openai ncw_tools files_pdfviewer
 
 	# Configure specialized apps
 
@@ -774,14 +777,6 @@ configure_apps() {
 	configure_notify_push_app
 	configure_whiteboard_app
 	configure_spreed_app
-
-	# Enable additional apps
-	enable_app ncw_mailtemplate "NCW Mail Template"
-	enable_app groupfolders "Group Folders"
-	enable_app assistant "Assistant"
-	enable_app integration_openai "OpenAI Integration"
-	enable_app ncw_tools "Task Processing"
-	enable_app files_pdfviewer "Files-PdfViewer"
 
 	# Configure admin features
 	configure_admin_delegation
