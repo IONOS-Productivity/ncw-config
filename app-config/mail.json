@@ -1,0 +1,8 @@
+{
+  "$schema": "../../resources/config-import.schema.json",
+  "apps": {
+    "mail": {
+      "allow_new_mail_aliases": { "value": "no" }
+    }
+  }
+}

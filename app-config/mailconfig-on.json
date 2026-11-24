@@ -1,0 +1,11 @@
+{
+  "$schema": "../../resources/config-import.schema.json",
+  "apps": {
+    "mail": {
+      "ionos_mailconfig_api_base_url": { "env": "IONOS_MAILCONFIG_API_URL", "type": "string" },
+      "ionos_mailconfig_api_auth_user": { "env": "IONOS_MAILCONFIG_API_USER", "type": "string" },
+      "ionos_mailconfig_api_auth_pass": { "env": "IONOS_MAILCONFIG_API_PASS", "type": "string", "sensitive": true },
+      "ionos-mailconfig-enabled": { "value": "yes", "type": "string" }
+    }
+  }
+}

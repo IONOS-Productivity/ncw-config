@@ -1,0 +1,8 @@
+{
+  "$schema": "../../resources/config-import.schema.json",
+  "apps": {
+    "viewer": {
+      "always_show_viewer": { "value": "yes", "type": "string" }
+    }
+  }
+}
