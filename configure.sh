@@ -267,6 +267,11 @@ apply_app_config_import() {
 		_names="${_names} $(basename "${_fragment}")"
 	done
 
+	# configure.sh --color also colors the import output, occ only does that on a terminal by itself
+	if [ "${PLAIN_OUTPUT}" = "false" ]; then
+		set -- --ansi "${@}"
+	fi
+
 	log_info "Importing app config:${_names}"
 	# --allow-unverified-delegations: some apps with delegated settings are disabled on purpose
 	execute_occ_command ionos:config:import --allow-unverified-delegations "${@}"
